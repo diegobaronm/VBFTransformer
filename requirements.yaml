@@ -1,0 +1,19 @@
+name: vbf_ditau
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - matplotlib
+  - pandas
+  - h5py
+  - scikit-learn
+  - ipykernel
+  - pip
+  - pip:
+      - polars
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - torch
+      - torchvision
+      - torchaudio
+      - lightning=2.5.*

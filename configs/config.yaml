@@ -1,0 +1,10 @@
+opts:
+  mode: train
+  runner: diego
+
+dataset:
+  signal_path: data/signal_polars.csv
+  background_path: data/background_polars.csv
+
+model:
+  n_particles: 7

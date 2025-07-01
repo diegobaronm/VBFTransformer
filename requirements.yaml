@@ -12,8 +12,9 @@ dependencies:
   - pip
   - pip:
       - polars
+      - hydra-core
       - --extra-index-url https://download.pytorch.org/whl/cu128
       - torch
       - torchvision
       - torchaudio
-      - lightning=2.5.*
+      - lightning==2.5.*

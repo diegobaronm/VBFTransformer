@@ -1,5 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torchmetrics
+import torch
 
 class SimpleDNN(nn.Module):
     def __init__(self, N_input_features): # You can add more parameters here, such that the size of all layers can be
@@ -43,6 +45,14 @@ class VBFTransformer(L.LightningModule):
         super().__init__()
         self.model = SimpleDNN(N_features)
         self.loss_fn = nn.BCELoss(reduction='mean')
+        # Metrics
+        self.accuracy = torchmetrics.classification.BinaryAccuracy()
+        self.confusion_matrix = torchmetrics.ConfusionMatrix(task="binary", num_classes=2, threshold=0.1)
+        self.roc = torchmetrics.ROC(task="binary",thresholds=100)
+
+        # Scores
+        self.signal_scores = torchmetrics.CatMetric()
+        self.background_scores = torchmetrics.CatMetric()
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
@@ -62,7 +72,65 @@ class VBFTransformer(L.LightningModule):
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         x, y = batch
-        return self.model(x)
+        return {"labels" : y, "predictions" : self.model(x)}
+    
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self.model(x)
+        pred = y_hat.squeeze()
+
+        # Accuracy
+        self.accuracy.update(pred, y)
+        # Confusion Matrix
+        self.confusion_matrix.update(pred, y)
+        # ROC
+        self.roc.update(pred, y.int())
+        
+
+        # Store scores for later use
+        class_scores = {"signal": pred[y.int() == 1], "background": pred[y.int() == 0]}
+        self.signal_scores.update(class_scores["signal"])
+        self.background_scores.update(class_scores["background"])
+
+
+    def on_test_epoch_end(self):
+        # Log the metrics
+        # Log accuracy
+        self.log('test_accuracy', self.accuracy.compute())
+
+        # Log Confusion Matrix
+        confmat = self.confusion_matrix.compute()
+        self.log('test_confmat_00', float(confmat[0][0]))
+        self.log('test_confmat_01', float(confmat[0][1]))
+        self.log('test_confmat_10', float(confmat[1][0]))
+        self.log('test_confmat_11', float(confmat[1][1]))
+
+        print('Saving confusion matrix plot...')
+        fig_, ax_ = self.confusion_matrix.plot()
+        fig_.savefig('confusion_matrix.png')
+
+        # Log ROC
+        print('Saving ROC curve plot...')
+        fig_, ax_ = self.roc.plot(score=True)
+        fig_.savefig('roc_curve.png')
+
+        # Print scores plot
+        signal_scores = self.signal_scores.compute()
+        background_scores = self.background_scores.compute()
+        import matplotlib.pyplot as plt
+        print('Saving signal and background scores plot...')
+        plt.figure(figsize=(10, 5))
+        plt.hist(signal_scores.cpu().numpy(), bins=50, alpha=0.5, label='Signal Scores', color='blue', density=True)
+        plt.hist(background_scores.cpu().numpy(), bins=50, alpha=0.5, label='Background Scores', color='red', density=True)
+        plt.xlabel('Scores')
+        plt.ylabel('Number of Events')
+        plt.title('Signal and Background Scores')
+        plt.legend()
+        plt.savefig('signal_background_scores.png')
+
+        # Reset metrics for the next epoch
+        self.confusion_matrix.reset()
+        self.roc.reset()
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.model.parameters(), lr=0.02, weight_decay=0.001)

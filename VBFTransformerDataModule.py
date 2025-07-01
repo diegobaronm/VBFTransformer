@@ -75,7 +75,7 @@ class VBFTransformerDataModule(L.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=32*4096, shuffle=False, num_workers=4)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=True, num_workers=4)
+        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4)
 
     def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=True, num_workers=4)
+        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4)

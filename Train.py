@@ -15,7 +15,7 @@ def train(DM):
     model = VBFTransformer(DM.n_features)
     
     # Define the trainer
-    trainer = L.Trainer(max_epochs=70, accelerator=device)
+    trainer = L.Trainer(max_epochs=130, accelerator=device)
     
     # Train the model
     trainer.fit(model=model, datamodule=DM)

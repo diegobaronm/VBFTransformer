@@ -4,32 +4,49 @@ import torch
 import gc # Garbage collector
 import math
 import matplotlib.pyplot as plt
+import torchmetrics
 
 import lightning as L
 
+# Import local modules
 from Train import train
 from Predict import predict
+from Performance import testing
 from VBFTransformerDataModule import VBFTransformerDataModule
 
 def main(mode):
     
-    datamodule = VBFTransformerDataModule('../data/signal_polars.csv','../data/background_polars.csv', n_particles=7)
+    datamodule = VBFTransformerDataModule('../../data/signal_polars.csv','../../data/background_polars.csv', n_particles=7)
 
     if mode == 'train':
         # Train the model
         train(datamodule)
+
     if mode == 'predict':
        # Predict using the model
        predictions = predict(datamodule)
-       print('Number of predictions:', len(predictions))
-       for i in predictions:
-           print(i)
+
+       # Save predictions to a CSV file
+       save_predictions = []
+       save_labels = []
+       for element in predictions:
+           save_predictions += element["predictions"].cpu().numpy().tolist()  # Convert tensor to numpy and then to list
+           save_labels += element["labels"].cpu().numpy().tolist()  # Convert tensor to numpy and then to list
+
+       df = pd.DataFrame({
+           'predictions': save_predictions,
+           'labels': save_labels    
+       })
+       df.to_csv('predictions.csv', index=False)
+    
+    if mode == 'performance':
+        testing(datamodule)
 
 if __name__ == "__main__":
     # This is the main entry point for the application.
     import argparse
     parser = argparse.ArgumentParser(description="Train a VBFTransformer model.")
-    parser.add_argument('--mode', help='Mode to run the script in', choices=['train', 'predict'], default='train')
+    parser.add_argument('--mode', help='Mode to run the script in', choices=['train', 'predict','performance'], default='train')
     args = parser.parse_args()
 
     # Run

@@ -1,0 +1,51 @@
+name: VBF Transformer CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.12"
+
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: "3.12"
+
+    - name: Create Conda environment
+      run: |
+        conda env create -f requirements.yaml
+        conda activate vbf_ditau
+
+    - name: Install package
+      run: |
+        conda activate vbf_ditau
+        pip install -e .
+
+    - name: Run training
+      run: |
+        conda activate vbf_ditau
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=train
+
+    - name: Run prediction
+      run: |
+        conda activate vbf_ditau
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=predict
+
+    - name: Run performance
+      run: |
+        conda activate vbf_ditau
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=performance

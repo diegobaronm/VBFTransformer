@@ -1,0 +1,20 @@
+general:
+  mode: train
+  runner: diego
+  device: cpu
+
+dataset:
+  signal_path: tests/data/signal_test.csv
+  background_path: tests/data/background_test.csv
+
+model:
+  n_particles: 7
+
+train:
+  n_epochs: 3
+
+predict:
+  output_file: predictions.csv
+
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/

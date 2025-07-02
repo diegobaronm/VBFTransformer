@@ -28,6 +28,7 @@ jobs:
     - name: Create Conda environment
       run: |
         conda env create -f requirements.yaml
+        conda init
         conda activate vbf_ditau
 
     - name: Install package

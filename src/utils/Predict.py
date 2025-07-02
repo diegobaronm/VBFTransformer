@@ -1,12 +1,14 @@
 import lightning as L
 import torch
 import pandas as pd
+from omegaconf import DictConfig
 
-from ..models.Model import VBFTransformer
+from src.models.Model import VBFTransformer
+from src.utils.Train import set_exection_device
 
-def predict(datamodule):
+def predict(datamodule, cfg: DictConfig):
     # Figure out the device to use
-    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    device = set_exection_device(cfg.general.device)
     # Define the trainer
     trainer = L.Trainer(accelerator=device)
 
@@ -25,4 +27,4 @@ def predict(datamodule):
         'predictions': save_predictions,
         'labels': save_labels    
     })
-    df.to_csv(model.result_dir+'predictions.csv', index=False)
+    df.to_csv(model.result_dir+cfg.predict.output_file, index=False)

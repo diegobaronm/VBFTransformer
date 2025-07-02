@@ -1,6 +1,12 @@
 # Hydra - for CLI configuration management
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import ConfigAttributeError
+
+# For pretty printing
+from rich import print
+from rich.syntax import Syntax
+from loguru import logger
 
 # Import local modules
 from src.utils.Train import train
@@ -10,18 +16,28 @@ from src.data.VBFTransformerDataModule import VBFTransformerDataModule
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig):
-    print(OmegaConf.to_yaml(cfg))
+    try: 
+        # Print the job configuration
+        syntax = Syntax(OmegaConf.to_yaml(cfg), "yaml", theme="monokai", line_numbers=False)
+        logger.info("Configuration:")
+        print(syntax)
 
-    datamodule = VBFTransformerDataModule(cfg.dataset.signal_path, cfg.dataset.background_path, n_particles=7)
+        # Load the data module
+        datamodule = VBFTransformerDataModule(cfg.dataset.signal_path, cfg.dataset.background_path, n_particles=cfg.model.n_particles)
 
-    if cfg.opts.mode == 'train':
-        train(datamodule, cfg)
+        # Run the different modes based on the configuration
+        if cfg.general.mode == 'train':
+            train(datamodule, cfg)
 
-    if cfg.opts.mode == 'predict':
-       predict(datamodule)
+        if cfg.general.mode == 'predict':
+            predict(datamodule, cfg)
 
-    if cfg.opts.mode == 'performance':
-        testing(datamodule)
+        if cfg.general.mode == 'performance':
+            testing(datamodule, cfg)
+
+    except ConfigAttributeError:
+        logger.error("Configuration error: Please check your configuration file. Possibly a missing attribute is needed.")
+        raise
 
 if __name__ == "__main__":
     # Run

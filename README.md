@@ -35,7 +35,7 @@ The main script `VBFTransformer.py` is controlled via the command line and confi
 To train the model, run:
 
 ```bash
-python VBFTransformer.py --config-name config opts.mode=train
+python VBFTransformer.py --config-name config general.mode=train
 ```
 
 ### Generating Predictions
@@ -43,7 +43,7 @@ python VBFTransformer.py --config-name config opts.mode=train
 To generate predictions with a trained model, run:
 
 ```bash
-python VBFTransformer.py --config-name config opts.mode=predict
+python VBFTransformer.py --config-name config general.mode=predict
 ```
 
 ### Evaluating Performance
@@ -51,11 +51,11 @@ python VBFTransformer.py --config-name config opts.mode=predict
 To evaluate the model's performance (e.g., generate ROC curves and confusion matrices), run:
 
 ```bash
-python VBFTransformer.py --config-name config opts.mode=performance
+python VBFTransformer.py --config-name config general.mode=performance
 ```
 
 You can customize the behavior by modifying the `configs/config.yaml` file or by overriding parameters from the command line. For example:
 
 ```bash
-python VBFTransformer.py opts.mode=train model.learning_rate=0.002
+python VBFTransformer.py general.mode=train model.learning_rate=0.002
 ```

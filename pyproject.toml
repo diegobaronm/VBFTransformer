@@ -24,6 +24,8 @@ dependencies = [
     "ipykernel",
     "polars",
     "hydra-core",
+    "rich",
+    "loguru",
     # For torch with CUDA, you might need to specify the index URL during installation,
     # e.g., pip install torch --extra-index-url https://download.pytorch.org/whl/cu128
     "torch",

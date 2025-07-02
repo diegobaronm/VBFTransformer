@@ -1,6 +1,7 @@
-opts:
-  mode: train
+general:
+  mode: performance
   runner: diego
+  device: cuda
 
 dataset:
   signal_path: data/signal_simple_polars.csv
@@ -11,3 +12,9 @@ model:
 
 train:
   n_epochs: 300
+
+predict:
+  output_file: predictions.csv
+
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/

@@ -1,8 +1,33 @@
 import lightning as L
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
+from loguru import logger
 
-from ..models.Model import VBFTransformer
+from src.models.Model import VBFTransformer
+
+def set_exection_device(cfg_device : str):
+    if cfg_device == None:
+        logger.warning("No device specified in the configuration, defaulting to CPU.")
+        return "cpu"
+
+    is_cuda_available = torch.accelerator.is_available()
+    if is_cuda_available and cfg_device.lower() == "cuda":
+        logger.info("CUDA is available and the configuration specifies CUDA. Using CUDA.")
+        return "cuda"
+    elif is_cuda_available and cfg_device.lower() == "cpu":
+        logger.info("CUDA is available, but the configuration specifies CPU. Using CPU.")
+        return "cpu"
+    elif not is_cuda_available and cfg_device.lower() == "cuda":
+        logger.warning("CUDA is not available, but the configuration specifies CUDA. Using CPU instead.")
+        return "cpu"
+    elif not is_cuda_available and cfg_device.lower() == "cpu":
+        logger.info("CUDA is not available, using CPU as specified in the configuration.")
+        return "cpu"
+    else:
+        logger.error(f"Invalid device specified in the configuration: {cfg_device}. Select between cuda/cpu.")
+        raise ValueError()
+
+        
 
 def train(DM, cfg: DictConfig):
     """
@@ -10,7 +35,7 @@ def train(DM, cfg: DictConfig):
     """
 
     # Figure out the device to use
-    device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+    device = set_exection_device(cfg.general.device)
 
     # Define the model
     model = VBFTransformer(DM.n_features)

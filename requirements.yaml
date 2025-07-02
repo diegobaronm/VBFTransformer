@@ -13,6 +13,8 @@ dependencies:
   - pip:
       - polars
       - hydra-core
+      - rich
+      - loguru
       - --extra-index-url https://download.pytorch.org/whl/cu128
       - torch
       - torchvision

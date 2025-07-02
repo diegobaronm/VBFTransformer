@@ -10,43 +10,33 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
     - uses: actions/checkout@v3
-
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.12"
 
     - name: Set up Conda
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
         python-version: "3.12"
+        environment-file: requirements.yaml
+        activate-environment: vbf_ditau
 
-    - name: Create Conda environment
+    - name: Install VBF Transformer package
       run: |
-        conda env create -f requirements.yaml
-        conda init
-        conda activate vbf_ditau
-
-    - name: Install package
-      run: |
-        conda activate vbf_ditau
         pip install -e .
 
     - name: Run training
       run: |
-        conda activate vbf_ditau
         python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=train
 
     - name: Run prediction
       run: |
-        conda activate vbf_ditau
         python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=predict
 
     - name: Run performance
       run: |
-        conda activate vbf_ditau
         python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=performance

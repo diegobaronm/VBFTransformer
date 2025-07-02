@@ -31,12 +31,12 @@ jobs:
 
     - name: Run training
       run: |
-        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=train
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=train
 
     - name: Run prediction
       run: |
-        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=predict
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=predict
 
     - name: Run performance
       run: |
-        python VBFTransformer.py --config-dir tests/configs --config-name test_config opts.mode=performance
+        python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=performance

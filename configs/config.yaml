@@ -1,10 +1,13 @@
 opts:
-  mode: train
+  mode: performance
   runner: diego
 
 dataset:
-  signal_path: data/signal_polars.csv
-  background_path: data/background_polars.csv
+  signal_path: ../../data/signal_simple_polars.csv
+  background_path: ../../data/background_simple_polars.csv
 
 model:
   n_particles: 7
+
+train:
+  n_epochs: 200

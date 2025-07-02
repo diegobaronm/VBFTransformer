@@ -1,9 +1,10 @@
 import lightning as L
 import torch
+from omegaconf import DictConfig, OmegaConf
 
-from Model import VBFTransformer
+from ML.VBFTransformer.src.models.Model import VBFTransformer
 
-def train(DM):
+def train(DM, cfg: DictConfig):
     """
     This function is used to train the model.
     """
@@ -15,7 +16,7 @@ def train(DM):
     model = VBFTransformer(DM.n_features)
     
     # Define the trainer
-    trainer = L.Trainer(max_epochs=130, accelerator=device)
+    trainer = L.Trainer(max_epochs=cfg.train.n_epochs, accelerator=device)
     
     # Train the model
     trainer.fit(model=model, datamodule=DM)

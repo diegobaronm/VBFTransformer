@@ -1,7 +1,7 @@
 import lightning as L
 import torch
 
-from Model import VBFTransformer
+from ML.VBFTransformer.src.models.Model import VBFTransformer
 
 def predict(datamodule):
     # Figure out the device to use

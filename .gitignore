@@ -14,3 +14,9 @@ venv/
 
 # Ignore results of running
 lightning_logs/
+results/*
+!results/.gitkeep
+
+# Ignore input data
+data/*
+!data/.gitkeep

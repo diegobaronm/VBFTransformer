@@ -16,7 +16,7 @@ from omegaconf import DictConfig, OmegaConf
 from Train import train
 from Predict import predict
 from Performance import testing
-from VBFTransformerDataModule import VBFTransformerDataModule
+from ML.VBFTransformer.src.data.VBFTransformerDataModule import VBFTransformerDataModule
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig):
@@ -26,7 +26,7 @@ def main(cfg: DictConfig):
 
     if cfg.opts.mode == 'train':
         # Train the model
-        train(datamodule)
+        train(datamodule, cfg)
 
     if cfg.opts.mode == 'predict':
        # Predict using the model

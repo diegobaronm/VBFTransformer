@@ -3,18 +3,32 @@ import torch
 from torch.utils.data import random_split, DataLoader, TensorDataset
 import polars as pl
 import numpy as np
+from loguru import logger
 
 class VBFTransformerDataModule(L.LightningDataModule):
-    def __init__(self, signal_path: str, backgorund_path: str, n_particles: int = 7):
+    def __init__(self, signal_path: str, backgorund_path: str,
+                n_particles: int = 7,
+                train_num_workers: int = 4,
+                val_num_workers: int = 4,
+                train_batch_size: int = 1000,
+                val_batch_size: int = 500):
         super().__init__()
+        # User-defined parameters
         self.signal_path = signal_path
         self.background_path = backgorund_path
+        self.train_num_workers = train_num_workers
+        self.val_num_workers = val_num_workers
+        self.train_batch_size = train_batch_size
+        self.val_batch_size = val_batch_size
+
+        # Other parameters
         max_particles = 7
         if n_particles > max_particles:
             raise ValueError(f"n_particles must be less than or equal to {max_particles}.")
         self.n_features = n_particles * 7 # 7 features per particle
 
     def setup(self, stage: str):
+        logger.info("Setting up the data module...")
         # Load the data using Polars
         signal_df = pl.read_csv(self.signal_path)
         background_df = pl.read_csv(self.background_path)
@@ -28,6 +42,11 @@ class VBFTransformerDataModule(L.LightningDataModule):
         # Set targets for training
         y_signal     = np.ones(len(df_signal_filtered))
         y_background = np.zeros(len(df_background_filtered))
+
+        # Print number of events
+        logger.info(f"Number of signal events: {len(df_signal_filtered)}")
+        logger.info(f"Number of background events: {len(df_background_filtered)}")
+        logger.info(f"Total number of events: {len(df_signal_filtered) + len(df_background_filtered)}")
 
         # Combine the dataframes as one big numpy array
         input_data = np.concatenate((df_signal_filtered, df_background_filtered), axis=0)
@@ -67,15 +86,20 @@ class VBFTransformerDataModule(L.LightningDataModule):
         self.val_dataset   = TensorDataset(X_val_tensor, y_val_tensor)
         self.test_dataset  = TensorDataset(X_test_tensor, y_test_tensor)
 
+        # Print dataset sizes
+        logger.info(f"Training dataset size: {len(y_train_tensor)}")
+        logger.info(f"Validation dataset size: {len(y_val_tensor)}")
+        logger.info(f"Test dataset size: {len(y_test_tensor)}")
+
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=160*4096, shuffle=True, num_workers=10)
+        return DataLoader(self.train_dataset, batch_size=self.train_batch_size, shuffle=True, num_workers=self.train_num_workers, persistent_workers=True, drop_last=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=32*4096, shuffle=False, num_workers=4)
+        return DataLoader(self.val_dataset, batch_size=self.val_batch_size, shuffle=False, num_workers=self.val_num_workers, persistent_workers=True, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4)
+        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4)
+        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)

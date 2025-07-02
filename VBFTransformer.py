@@ -23,7 +23,13 @@ def main(cfg: DictConfig):
         print(syntax)
 
         # Load the data module
-        datamodule = VBFTransformerDataModule(cfg.dataset.signal_path, cfg.dataset.background_path, n_particles=cfg.model.n_particles)
+        datamodule = VBFTransformerDataModule(cfg.dataset.signal_path,
+                                            cfg.dataset.background_path,
+                                            n_particles=cfg.model.n_particles,
+                                            train_num_workers=cfg.dataset.train.num_workers,
+                                            val_num_workers=cfg.dataset.val.num_workers,
+                                            train_batch_size=cfg.dataset.train.batch_size,
+                                            val_batch_size=cfg.dataset.val.batch_size)
 
         # Run the different modes based on the configuration
         if cfg.general.mode == 'train':

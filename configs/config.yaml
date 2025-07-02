@@ -1,18 +1,26 @@
 general:
   mode: performance
   runner: diego
-  device: cuda
+  device: mps
 
 dataset:
-  signal_path: data/signal_simple_polars.csv
-  background_path: data/background_simple_polars.csv
+  signal_path: data/signal_test.csv
+  background_path: data/background_test.csv
+  persistent_workers: True
+  train:
+    num_workers: 8
+    batch_size: 10000
+  val:
+    num_workers: 4
+    batch_size: 5000
 
 model:
   n_particles: 7
 
 train:
-  n_epochs: 300
-
+  n_epochs: 600
+  learning_rate: 0.002
+  dropout_probability: 0.1
 predict:
   output_file: predictions.csv
 

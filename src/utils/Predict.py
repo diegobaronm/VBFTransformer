@@ -4,16 +4,19 @@ import pandas as pd
 from omegaconf import DictConfig
 
 from src.models.Model import VBFTransformer
-from src.utils.Train import set_exection_device
+from src.utils.utils import set_exection_device
 
 def predict(datamodule, cfg: DictConfig):
     # Figure out the device to use
     device = set_exection_device(cfg.general.device)
     # Define the trainer
-    trainer = L.Trainer(accelerator=device)
+    trainer = L.Trainer(accelerator=device, enable_checkpointing=False, logger=False)
 
     # Predict
-    model = VBFTransformer(datamodule.n_features)
+    model = VBFTransformer(
+        DM.n_features,
+        dropout_probability=cfg.train.dropout_probability,
+        learning_rate=cfg.train.learning_rate)
     predictions = trainer.predict(model, datamodule=datamodule)
 
     # Save predictions to a CSV file

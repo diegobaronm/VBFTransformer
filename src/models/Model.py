@@ -1,10 +1,13 @@
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics
-import torch
+import lightning as L
+import torch.optim as optim
+
+from src.utils.utils import check_and_overwrite_result_path
 
 class SimpleDNN(nn.Module):
-    def __init__(self, N_input_features): # You can add more parameters here, such that the size of all layers can be
+    def __init__(self, N_input_features, dropout_probability : float): # You can add more parameters here, such that the size of all layers can be
         # defined in the constructor
         """
         In the constructor we instantiate two nn.Linear modules and assign them as
@@ -15,7 +18,7 @@ class SimpleDNN(nn.Module):
         self.linear2 = nn.Linear(N_input_features, 30)
         self.linear3 = nn.Linear(30, 20)
         self.linear4 = nn.Linear(20, 1)
-        self.dropput = nn.Dropout()
+        self.dropput = nn.Dropout(p=dropout_probability)
 
     def forward(self, x):
         """
@@ -36,18 +39,17 @@ class SimpleDNN(nn.Module):
         # The final layer is self.linear24 then we apply the sigmoid activation function to get our final output
         y_pred = F.sigmoid(self.linear4(x3dp))
         return y_pred
-    
-import lightning as L
-import torch.optim as optim
 
 class VBFTransformer(L.LightningModule):
-    def __init__(self, N_features):
+    def __init__(self, N_features, dropout_probability : float, learning_rate: float):
         super().__init__()
-        self.model = SimpleDNN(N_features)
-        self.loss_fn = nn.BCELoss(reduction='mean')
+        # Model parameters
+        self.learning_rate = learning_rate
+        self.model = SimpleDNN(N_features, dropout_probability)
+        self.loss_fn = nn.BCELoss(reduction='mean',)
         # Metrics
         self.accuracy = torchmetrics.classification.BinaryAccuracy()
-        self.confusion_matrix = torchmetrics.ConfusionMatrix(task="binary", num_classes=2, threshold=0.1)
+        self.confusion_matrix = torchmetrics.ConfusionMatrix(task="binary", num_classes=2, threshold=0.5)
         self.roc = torchmetrics.ROC(task="binary",thresholds=100)
 
         # Scores
@@ -110,12 +112,15 @@ class VBFTransformer(L.LightningModule):
 
         print('Saving confusion matrix plot...')
         fig_, ax_ = self.confusion_matrix.plot()
-        fig_.savefig(self.result_dir+'confusion_matrix.png')
+
+        save_path = check_and_overwrite_result_path(self.result_dir+'confusion_matrix.png')
+        fig_.savefig(save_path)
 
         # Log ROC
         print('Saving ROC curve plot...')
         fig_, ax_ = self.roc.plot(score=True)
-        fig_.savefig(self.result_dir+'roc_curve.png')
+        save_path = check_and_overwrite_result_path(self.result_dir+'roc_curve.png')
+        fig_.savefig(save_path)
 
         # Print scores plot
         signal_scores = self.signal_scores.compute()
@@ -129,12 +134,13 @@ class VBFTransformer(L.LightningModule):
         plt.ylabel('Number of Events')
         plt.title('Signal and Background Scores')
         plt.legend()
-        plt.savefig(self.result_dir+'signal_background_scores.png')
+        save_path = check_and_overwrite_result_path(self.result_dir+'signal_background_scores.png')
+        plt.savefig(save_path)
 
         # Reset metrics for the next epoch
         self.confusion_matrix.reset()
         self.roc.reset()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.model.parameters(), lr=0.02, weight_decay=0.001)
+        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=0.001, amsgrad=True)
         return optimizer

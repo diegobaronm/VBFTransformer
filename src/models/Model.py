@@ -54,6 +54,9 @@ class VBFTransformer(L.LightningModule):
         self.signal_scores = torchmetrics.CatMetric()
         self.background_scores = torchmetrics.CatMetric()
 
+        # Results
+        self.result_dir = 'results/'
+
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
         x, y = batch
@@ -107,12 +110,12 @@ class VBFTransformer(L.LightningModule):
 
         print('Saving confusion matrix plot...')
         fig_, ax_ = self.confusion_matrix.plot()
-        fig_.savefig('confusion_matrix.png')
+        fig_.savefig(self.result_dir+'confusion_matrix.png')
 
         # Log ROC
         print('Saving ROC curve plot...')
         fig_, ax_ = self.roc.plot(score=True)
-        fig_.savefig('roc_curve.png')
+        fig_.savefig(self.result_dir+'roc_curve.png')
 
         # Print scores plot
         signal_scores = self.signal_scores.compute()
@@ -126,7 +129,7 @@ class VBFTransformer(L.LightningModule):
         plt.ylabel('Number of Events')
         plt.title('Signal and Background Scores')
         plt.legend()
-        plt.savefig('signal_background_scores.png')
+        plt.savefig(self.result_dir+'signal_background_scores.png')
 
         # Reset metrics for the next epoch
         self.confusion_matrix.reset()

@@ -2,7 +2,7 @@ import lightning as L
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from ML.VBFTransformer.src.models.Model import VBFTransformer
+from ..models.Model import VBFTransformer
 
 def train(DM, cfg: DictConfig):
     """

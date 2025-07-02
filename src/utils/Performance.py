@@ -1,7 +1,7 @@
 import lightning as L
 import torch
 
-from ML.VBFTransformer.src.models.Model import VBFTransformer
+from ..models.Model import VBFTransformer
 
 def testing(datamodule):
     # Figure out the device to use

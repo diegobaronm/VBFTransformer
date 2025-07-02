@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+*.egg-info/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -20,3 +21,6 @@ results/*
 # Ignore input data
 data/*
 !data/.gitkeep
+
+# Ignore outputs from hydra
+outputs/*

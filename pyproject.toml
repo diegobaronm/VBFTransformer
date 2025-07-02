@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "VBFTransformer"
+version = "0.1.0"
+authors = [
+  { name="Diego Baron", email="diegoa_baronmo@hotmail.com" },
+]
+description = "A project for VBF Di-Tau analysis with a Transformer model."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "matplotlib",
+    "pandas",
+    "h5py",
+    "scikit-learn",
+    "ipykernel",
+    "polars",
+    "hydra-core",
+    # For torch with CUDA, you might need to specify the index URL during installation,
+    # e.g., pip install torch --extra-index-url https://download.pytorch.org/whl/cu128
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "lightning>=2.5.0, <2.6.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/diegobaronm/VBFTransformer"
+
+[tool.setuptools.packages.find]
+where = ["src"]

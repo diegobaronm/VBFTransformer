@@ -3,6 +3,9 @@ import torch.nn.functional as F
 import torchmetrics
 import lightning as L
 import torch.optim as optim
+import torch
+import pandas as pd
+import numpy as np
 
 from src.utils.utils import check_and_overwrite_result_path
 
@@ -51,6 +54,10 @@ class VBFTransformer(L.LightningModule):
         self.accuracy = torchmetrics.classification.BinaryAccuracy()
         self.confusion_matrix = torchmetrics.ConfusionMatrix(task="binary", num_classes=2, threshold=0.5)
         self.roc = torchmetrics.ROC(task="binary",thresholds=100)
+        self.feature_importance_column_dic = {} # A map between feature names and an integer for the column index
+        self.feature_importance = {} # To hold the metric for each feature name
+        # We do the filling of the feature importance in the setup method, because we need to know the feature names first.
+        # They come from the data module, which is set up before the model.
 
         # Scores
         self.signal_scores = torchmetrics.CatMetric()
@@ -58,6 +65,16 @@ class VBFTransformer(L.LightningModule):
 
         # Results
         self.result_dir = 'results/'
+
+    def setup(self, stage): # This is always called after the data module is setup.
+        self.feature_names = self.trainer.datamodule.feature_names
+        i = 0
+        for name in self.feature_names:
+            # Initialize a metric for each feature importance
+            self.feature_importance[name] = torchmetrics.AUROC(task="binary", thresholds=100)
+            self.feature_importance_column_dic[name] = i
+            i += 1
+        self.feature_importance['nominal'] = torchmetrics.AUROC(task="binary", thresholds=100)
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
@@ -90,6 +107,23 @@ class VBFTransformer(L.LightningModule):
         self.confusion_matrix.update(pred, y)
         # ROC
         self.roc.update(pred, y.int())
+        # AUROC
+        self.feature_importance['nominal'].to(self.device)
+        self.feature_importance['nominal'].update(pred, y.int())
+        # Feature Importance
+        for feature_name, column_index in self.feature_importance_column_dic.items():
+            self.feature_importance[feature_name].to(self.device)
+            scrambled_column = x[:, column_index].clone()  # Clone to avoid modifying the original tensor
+            # Shuffle the column to create a scrambled version
+            scrambled_column = scrambled_column[torch.randperm(scrambled_column.size(0))]
+            # Update the feature importance metric with the scrambled column
+            scrambled_x = x.clone()
+            scrambled_x[:, column_index] = scrambled_column
+            # Calculate the prediction with the scrambled feature
+            scrambled_pred = self.model(scrambled_x)
+            scrambled_pred = scrambled_pred.squeeze()
+            self.feature_importance[feature_name].update(scrambled_pred, y.int())
+
         
 
         # Store scores for later use
@@ -137,10 +171,40 @@ class VBFTransformer(L.LightningModule):
         save_path = check_and_overwrite_result_path(self.result_dir+'signal_background_scores.png')
         plt.savefig(save_path)
 
+        # Log AUROC
+        self.feature_importance['nominal'].to(self.device)
+        nominal_auc = self.feature_importance['nominal'].compute()
+        self.log('test_nominal_auc', nominal_auc)
+
+        # Log feature importance and produce a plot
+        importance_dict = {} # AUC, percentage difference from nominal
+        for feature_name, metric in self.feature_importance.items():
+            metric.to(self.device)
+            auc_value = metric.compute()
+            percentage_difference = 100 * (nominal_auc - auc_value) / nominal_auc
+            importance_dict[feature_name] = percentage_difference.cpu().numpy()  # Convert to numpy for easier handling
+            self.log(f'test_feature_importance_{feature_name}', percentage_difference)
+        # Order the feature importance dictionary by percentage difference
+        sorted_indices = np.argsort(list(importance_dict.values()))
+        sorted_features = [list(importance_dict.keys())[i] for i in sorted_indices]
+        sorted_importances = [importance_dict[feature] for feature in sorted_features]
+        # Plot
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(12, 8))
+        plt.barh(range(len(sorted_importances)), sorted_importances, align='center')
+        plt.yticks(range(len(sorted_features)), sorted_features)
+        plt.xlabel('Importance - Percentage Difference from Nominal AUC')
+        plt.title('Feature Importances')
+        save_path = check_and_overwrite_result_path(self.result_dir+'feature_importances.png')
+        plt.savefig(save_path)
+
         # Reset metrics for the next epoch
         self.confusion_matrix.reset()
         self.roc.reset()
+        self.signal_scores.reset()
+        self.background_scores.reset()
+        self.feature_importance['nominal'].reset()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=0.001, amsgrad=True)
+        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=0.0001, amsgrad=True)
         return optimizer

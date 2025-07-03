@@ -26,6 +26,7 @@ class VBFTransformerDataModule(L.LightningDataModule):
         if n_particles > max_particles:
             raise ValueError(f"n_particles must be less than or equal to {max_particles}.")
         self.n_features = n_particles * 7 # 7 features per particle
+        self.feature_names = []
 
     def setup(self, stage: str):
         logger.info("Setting up the data module...")
@@ -34,11 +35,13 @@ class VBFTransformerDataModule(L.LightningDataModule):
         background_df = pl.read_csv(self.background_path)
 
         # define the features you are interested in
-        input_features = signal_df.columns
-        self.n_features = len(input_features)
-        df_signal_filtered = signal_df[input_features]
-        df_background_filtered = background_df[input_features]
-
+        self.feature_names = signal_df.columns
+        self.n_features = len(self.feature_names)
+        df_signal_filtered = signal_df[self.feature_names]
+        df_background_filtered = background_df[self.feature_names]
+        logger.info(f"Number of features: {self.n_features}")
+        logger.info(f"Feature names: {self.feature_names}")
+        
         # Set targets for training
         y_signal     = np.ones(len(df_signal_filtered))
         y_background = np.zeros(len(df_background_filtered))

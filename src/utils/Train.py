@@ -17,7 +17,7 @@ def train(DM, cfg: DictConfig):
 
     # Define the model
     model = VBFTransformer(
-        DM.n_features,
+        cfg.model.n_features,
         dropout_probability=cfg.train.dropout_probability,
         learning_rate=cfg.train.learning_rate)
     

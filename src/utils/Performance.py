@@ -15,7 +15,7 @@ def testing(datamodule, cfg: DictConfig):
 
     # Predict
     model = VBFTransformer.load_from_checkpoint(ckpt_path,
-                                                N_features=datamodule.n_features,
+                                                N_features=cfg.model.n_features,
                                                 dropout_probability=cfg.train.dropout_probability,
                                                 learning_rate=cfg.train.learning_rate)
     model.eval()  # Set the model to evaluation mode

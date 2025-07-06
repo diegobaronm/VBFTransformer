@@ -49,7 +49,14 @@ class VBFTransformer(L.LightningModule):
         # Model parameters
         self.learning_rate = learning_rate
         self.model = SimpleDNN(N_features, dropout_probability)
-        self.loss_fn = nn.BCELoss(reduction='mean',)
+        self.loss_fn = nn.BCELoss(reduction='none')
+        # Raw inverse freq
+        w0 = 1.0 / 5594716  # 0.001
+        w1 = 1.0 / 161959    # 0.1
+        weights = torch.tensor([w0, w1], dtype=torch.float32)
+        # Normalize to sum to 2 (number of classes)
+        self.weights = weights * 2.0 / weights.sum()
+        self.weights.to(self.device)  # Move weights to the device
         # Metrics
         self.accuracy = torchmetrics.classification.BinaryAccuracy()
         self.confusion_matrix = torchmetrics.ConfusionMatrix(task="binary", num_classes=2, threshold=0.5)
@@ -81,6 +88,8 @@ class VBFTransformer(L.LightningModule):
         x, y = batch
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat.squeeze(), y)
+        weight = torch.where(y == 1, self.weights[1], self.weights[0])
+        loss = (loss * weight).mean()  # Apply the weights to the loss
         self.log('train_loss', loss, prog_bar=True, on_step=True, on_epoch=True)
         return loss
     
@@ -89,6 +98,8 @@ class VBFTransformer(L.LightningModule):
         x, y = batch
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat.squeeze(), y)
+        weight = torch.where(y == 1, self.weights[1], self.weights[0])
+        loss = (loss * weight).mean()  # Apply the weights to the loss
         self.log('val_loss', loss, prog_bar=True, on_step=False, on_epoch=True)
         return loss
     

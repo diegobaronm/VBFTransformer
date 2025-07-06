@@ -14,7 +14,7 @@ def predict(datamodule, cfg: DictConfig):
 
     # Predict
     model = VBFTransformer(
-        datamodule.n_features,
+        cfg.model.n_features,
         dropout_probability=cfg.train.dropout_probability,
         learning_rate=cfg.train.learning_rate)
     predictions = trainer.predict(model, datamodule=datamodule)

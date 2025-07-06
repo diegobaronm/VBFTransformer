@@ -12,7 +12,7 @@ from loguru import logger
 from src.utils.Train import train
 from src.utils.Predict import predict
 from src.utils.Performance import testing
-from src.data.VBFTransformerDataModule import VBFTransformerDataModule
+from data.VBFDNNDataModule import VBFDNNDataModule
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig):
@@ -23,7 +23,7 @@ def main(cfg: DictConfig):
         print(syntax)
 
         # Load the data module
-        datamodule = VBFTransformerDataModule(cfg.dataset.signal_path,
+        datamodule = VBFDNNDataModule(cfg.dataset.signal_path,
                                             cfg.dataset.background_path,
                                             n_particles=cfg.model.n_particles,
                                             train_num_workers=cfg.dataset.train.num_workers,

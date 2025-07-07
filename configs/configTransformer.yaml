@@ -9,22 +9,24 @@ dataset:
   persistent_workers: True
   train:
     num_workers: 8
-    batch_size: 50000
+    batch_size: 17408
   val:
     num_workers: 8
-    batch_size: 20000
+    batch_size: 8192
 
 model:
-  type: DNN
-  n_particles: 7
-  n_features: 63
+  type: Transformer
+  input_dim: 8
+  n_heads: 16
+  n_layers: 3
+  n_particles: 5
 
 train:
-  n_epochs: 200
+  n_epochs: 100
   learning_rate: 0.002
   dropout_probability: 0.1
 predict:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  model_ckpt_path: lightning_logs/version_15/checkpoints/
   output_file: predictions.csv
 performance:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  model_ckpt_path: lightning_logs/version_15/checkpoints/

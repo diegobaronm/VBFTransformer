@@ -6,49 +6,76 @@ import torch.optim as optim
 import torch
 import pandas as pd
 import numpy as np
+from omegaconf import DictConfig
 
 from src.utils.utils import check_and_overwrite_result_path
 
-class SimpleDNN(nn.Module):
-    def __init__(self, N_input_features, dropout_probability : float): # You can add more parameters here, such that the size of all layers can be
-        # defined in the constructor
+class BasicTransformer(nn.Module):
+    def __init__(self, input_dim, n_head, n_layers, dropout_probability):
+        super(BasicTransformer, self).__init__()
+        # Input embedding head
+        self.input_embedder = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(32, 64),
+        )
+        # Transformer Encoder
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=64, nhead=n_head,batch_first=True),
+            num_layers=n_layers, enable_nested_tensor=False)
+
+
+        self.output_classifier_head = nn.Sequential(
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(32, 1),
+        )
+
+    def mean_pooling(self,x):
         """
-        In the constructor we instantiate two nn.Linear modules and assign them as
-        member variables.
+        Mean pooling implementation
         """
-        super(SimpleDNN, self).__init__()
-        self.linear1 = nn.Linear(N_input_features, N_input_features)
-        self.linear2 = nn.Linear(N_input_features, 30)
-        self.linear3 = nn.Linear(30, 20)
-        self.linear4 = nn.Linear(20, 1)
-        self.dropput = nn.Dropout(p=dropout_probability)
+        # x: (batch_size, num_tokens, embed_dim)
+        return x.mean(dim=1)
+
+    def attention_pooling(self,x):
+
+        """
+        Attention pooling implementation
+        """
+        # x: (batch_size, num_tokens, embed_dim)
+        B = x.size(0)
+        pool_query = nn.Parameter(torch.randn(1, 1, 32)).to(device)
+        query = pool_query.expand(B, -1, -1)  # (B, 1, embed_dim)
+
+        # Compute attention scores
+        attn_scores = torch.matmul(query, x.transpose(1, 2))  # (B, 1, num_tokens)
+        attn_weights = torch.softmax(attn_scores, dim=-1)     # (B, 1, num_tokens)
+
+        # Weighted sum
+        pooled = torch.matmul(attn_weights, x)  # (B, 1, embed_dim)
+        return pooled.squeeze(1)
 
     def forward(self, x):
-        """
-        In the forward function we accept a Tensor of input data and we must return
-        a Tensor of output data. We can use Modules defined in the constructor as
-        well as arbitrary operators on Tensors.
-        """
-        # Compute the forward pass.
-        # The first layer is self.linear1, then we apply the ReLU activation function
-        x1     = F.relu(self.linear1(x))
-        x1dp = self.dropput(x1)
-        # layer2
-        x2     = F.relu(self.linear2(x1dp))
-        x2dp = self.dropput(x2)
-        #layer 3
-        x3     = F.relu(self.linear3(x2dp))
-        x3dp   = self.dropput(x3)
-        # The final layer is self.linear24 then we apply the sigmoid activation function to get our final output
-        y_pred = F.sigmoid(self.linear4(x3dp))
-        return y_pred
+        x = self.input_embedder(x)
+        x = self.transformer_encoder(x)
+        # x = self.attention_pooling(x)
+        x = self.mean_pooling(x)
+        x = self.output_classifier_head(x)
+        return F.sigmoid(x)
 
 class VBFTransformer(L.LightningModule):
-    def __init__(self, N_features, dropout_probability : float, learning_rate: float):
+    def __init__(self, config_object : DictConfig):
         super().__init__()
         # Model parameters
-        self.learning_rate = learning_rate
-        self.model = SimpleDNN(N_features, dropout_probability)
+        self.learning_rate = config_object.train.learning_rate
+        self.model = BasicTransformer(input_dim=config_object.model.input_dim,
+                                       n_head=config_object.model.n_heads,
+                                       n_layers=config_object.model.n_layers,
+                                       dropout_probability=config_object.train.dropout_probability)
+        self.model = torch.compile(self.model)  # Compile the model for better performance
         self.loss_fn = nn.BCELoss(reduction='none')
         # Raw inverse freq
         w0 = 1.0 / 5594716  # 0.001

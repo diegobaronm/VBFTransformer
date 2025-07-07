@@ -12,8 +12,25 @@ from loguru import logger
 from src.utils.Train import train
 from src.utils.Predict import predict
 from src.utils.Performance import testing
-from data.VBFDNNDataModule import VBFDNNDataModule
+# Import DataModules
+from src.data.VBFDNNDataModule import VBFDNNDataModule
+from src.data.VBFTransformerDataModule import VBFTransformerDataModule
+# Import models
+from src.models.TransformerModel import VBFTransformer
+from src.models.DNNModel import VBFDNN
 
+# Model and datamodule dictionaries
+g_datamodule_dict = {
+    'DNN': VBFDNNDataModule,
+    'Transformer': VBFTransformerDataModule
+}
+
+g_model_dict = {
+    'DNN': VBFDNN,
+    'Transformer': VBFTransformer
+}
+
+# Entry point for the application
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig):
     try: 
@@ -22,24 +39,22 @@ def main(cfg: DictConfig):
         logger.info("Configuration:")
         print(syntax)
 
-        # Load the data module
-        datamodule = VBFDNNDataModule(cfg.dataset.signal_path,
-                                            cfg.dataset.background_path,
-                                            n_particles=cfg.model.n_particles,
-                                            train_num_workers=cfg.dataset.train.num_workers,
-                                            val_num_workers=cfg.dataset.val.num_workers,
-                                            train_batch_size=cfg.dataset.train.batch_size,
-                                            val_batch_size=cfg.dataset.val.batch_size)
+        if cfg.model.type not in ['DNN', 'Transformer']:
+            logger.error("Invalid model type specified in the configuration. Please choose either 'DNN' or 'Transformer'.")
+            raise ValueError()
+        
+        model = g_model_dict[cfg.model.type] # This is configured inside each step of the pipeline, so just passing the type here.
+        datamodule = g_datamodule_dict[cfg.model.type](cfg)
 
         # Run the different modes based on the configuration
         if cfg.general.mode == 'train':
-            train(datamodule, cfg)
+            train(datamodule, model, cfg)
 
         if cfg.general.mode == 'predict':
-            predict(datamodule, cfg)
+            predict(datamodule, model, cfg)
 
         if cfg.general.mode == 'performance':
-            testing(datamodule, cfg)
+            testing(datamodule, model, cfg)
 
     except ConfigAttributeError:
         logger.error("Configuration error: Please check your configuration file. Possibly a missing attribute is needed.")

@@ -3,20 +3,18 @@ import torch
 import pandas as pd
 from omegaconf import DictConfig
 
-from src.models.Model import VBFTransformer
-from src.utils.utils import set_exection_device
+from src.utils.utils import set_exection_device, get_latest_checkpoint_path
 
-def predict(datamodule, cfg: DictConfig):
+def predict(datamodule, model, cfg: DictConfig):
     # Figure out the device to use
     device = set_exection_device(cfg.general.device)
     # Define the trainer
     trainer = L.Trainer(accelerator=device, enable_checkpointing=False, logger=False)
 
-    # Predict
-    model = VBFTransformer(
-        cfg.model.n_features,
-        dropout_probability=cfg.train.dropout_probability,
-        learning_rate=cfg.train.learning_rate)
+    # Load desired model and predict
+    ckpt_path = get_latest_checkpoint_path(cfg.predict.model_ckpt_path)
+    model = model.load_from_checkpoint(ckpt_path, config_object = cfg)
+    model.eval()  # Set the model to evaluation mode
     predictions = trainer.predict(model, datamodule=datamodule)
 
     # Save predictions to a CSV file

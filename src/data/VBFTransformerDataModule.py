@@ -8,9 +8,9 @@ import h5py
 from numpy.lib import recfunctions as rfn
 from omegaconf import DictConfig
 
-from src.data.DataScaler import DNNScaler
+from src.data.DataScaler import TransformerScaler
 
-class VBFDNNDataModule(L.LightningDataModule):
+class VBFTransformerDataModule(L.LightningDataModule):
     def __init__(self, cfg_object : DictConfig):
         super().__init__()
         # User-defined parameters
@@ -22,11 +22,11 @@ class VBFDNNDataModule(L.LightningDataModule):
         self.val_batch_size = cfg_object.dataset.val.batch_size
 
         # Other parameters
-        max_particles = 7
+        max_particles = 5
         if cfg_object.model.n_particles > max_particles:
             raise ValueError(f"n_particles must be less than or equal to {max_particles}.")
         self.n_particles = cfg_object.model.n_particles
-        self.n_features = self.n_particles * 7 # 7 features per particle
+        self.n_features = 7 # 7 features per particle
         self.feature_names = []
 
         
@@ -42,36 +42,28 @@ class VBFDNNDataModule(L.LightningDataModule):
         background_dataset_inputs = bg_file['INPUTS']['PARTICLES'][:,:self.n_particles]
         background_inputs = rfn.structured_to_unstructured(background_dataset_inputs)
 
-
-        def flat_inputs(input_array, n_particles):
-            output_array = input_array[:,:n_particles,:]
-            output_array = output_array.transpose(0,2,1)
-            output_array = output_array.reshape(-1, 49)
-
-            return output_array
-
-        # define the features you are interested in
-        df_signal_filtered = flat_inputs(signal_inputs, self.n_particles)
-        df_background_filtered = flat_inputs(background_inputs, self.n_particles)
-        logger.info(f"Number of features: {self.n_features}")
-
-        # Define the feature names
-        keys = list(signal_file['INPUTS']['PARTICLES'].dtype.names)
-        self.feature_names = [f"{key}{i}" for key in keys for i in range(self.n_particles)]
-        logger.info(f"Feature names: {self.feature_names}")
-        
-        # Set targets for training
-        y_signal     = np.ones(len(df_signal_filtered))
-        y_background = np.zeros(len(df_background_filtered))
-
         # Print number of events
-        logger.info(f"Number of signal events: {len(df_signal_filtered)}")
-        logger.info(f"Number of background events: {len(df_background_filtered)}")
-        logger.info(f"Total number of events: {len(df_signal_filtered) + len(df_background_filtered)}")
+        logger.info(f"Number of signal events: {len(signal_inputs)}")
+        logger.info(f"Number of background events: {len(background_inputs)}")
+        logger.info(f"Total number of events: {len(signal_inputs) + len(background_inputs)}")
+
+        # Set targets for training
+        y_signal     = np.ones(len(signal_inputs))
+        y_background = np.zeros(len(background_inputs))
 
         # Combine the dataframes as one big numpy array
-        input_data = np.concatenate((df_signal_filtered, df_background_filtered), axis=0)
+        input_data = np.concatenate((signal_inputs, background_inputs), axis=0)
         target     = np.concatenate((y_signal, y_background), axis=0)
+
+        # Scale all columns.
+        scaler = TransformerScaler
+        # Stack all particles vertically
+        input_data_shape = input_data.shape
+        logger.info(f"Input data shape: {input_data_shape}")
+        input_data_transformed = input_data.reshape((-1,7))
+        input_data_transformed = scaler.fit_transform(input_data_transformed)
+        # Reshape back to original shape
+        input_data = input_data_transformed.reshape((input_data.shape[0], input_data_shape[1], 7+1)) # +1 Because you added this in the scaler.
 
         # split data into train, validation, and test sets (You can also do the shuffle here, if not shuffled before)
         from sklearn.model_selection import train_test_split
@@ -83,11 +75,6 @@ class VBFDNNDataModule(L.LightningDataModule):
         X_temp, y_temp = input_data[test_indices], target[test_indices]
         X_val, X_test, y_val, y_test     = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)
 
-        # Scale the data
-        scaler = DNNScaler
-        X_train = scaler.fit_transform(X_train)
-        X_val   = scaler.transform(X_val)
-        X_test  = scaler.transform(X_test)
 
         # As tensors
         X_train_tensor = torch.tensor(X_train, dtype=torch.float32)

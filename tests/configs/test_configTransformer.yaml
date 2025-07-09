@@ -8,24 +8,25 @@ dataset:
   background_path: tests/data/background_test.h5
   persistent_workers: True
   train:
-    num_workers: 8
-    batch_size: 1000
+    num_workers: 2
+    batch_size: 1000 # You should use the same batch size that used for training, when predicting/testing.
   val:
-    num_workers: 4
+    num_workers: 2
     batch_size: 1000
 
 model:
-  type: DNN
+  type: Transformer
+  input_dim: 8
+  n_heads: 1
+  n_layers: 1
   n_particles: 5
-  n_features: 40
 
 train:
-  n_epochs: 3
+  n_epochs: 2
   learning_rate: 0.0003
   dropout_probability: 0.1
 predict:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  model_ckpt_path: lightning_logs/version_1/checkpoints/
   output_file: predictions.csv
-
 performance:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  model_ckpt_path: lightning_logs/version_1/checkpoints/

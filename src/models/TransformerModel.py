@@ -18,16 +18,16 @@ class BasicTransformer(nn.Module):
             nn.Linear(input_dim, 32),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(32, 64),
+            nn.Linear(32, 128),
         )
         # Transformer Encoder
         self.transformer_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=64, nhead=n_head,batch_first=True),
+            nn.TransformerEncoderLayer(d_model=128, dim_feedforward=512, nhead=n_head,batch_first=True),
             num_layers=n_layers, enable_nested_tensor=False)
 
 
         self.output_classifier_head = nn.Sequential(
-            nn.Linear(64, 32),
+            nn.Linear(128, 32),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(32, 1),
@@ -244,5 +244,5 @@ class VBFTransformer(L.LightningModule):
         self.feature_importance['nominal'].reset()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=0.0001, amsgrad=True)
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.01, amsgrad=True)
         return optimizer

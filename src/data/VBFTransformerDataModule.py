@@ -75,6 +75,11 @@ class VBFTransformerDataModule(L.LightningDataModule):
         X_temp, y_temp = input_data[test_indices], target[test_indices]
         X_val, X_test, y_val, y_test     = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)
 
+        # Log the number of events in each set by class
+        logger.info(f"Training set: {len(y_train)} events, {np.sum(y_train)} signal, {len(y_train) - np.sum(y_train)} background")
+        logger.info(f"Validation set: {len(y_val)} events, {np.sum(y_val)} signal, {len(y_val) - np.sum(y_val)} background")
+        logger.info(f"Test set: {len(y_test)} events, {np.sum(y_test)} signal, {len(y_test) - np.sum(y_test)} background")
+
 
         # As tensors
         X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
@@ -106,7 +111,7 @@ class VBFTransformerDataModule(L.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=self.val_batch_size, shuffle=False, num_workers=self.val_num_workers, persistent_workers=True, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)
+        return DataLoader(self.test_dataset, batch_size=self.train_batch_size, shuffle=False, num_workers=4, persistent_workers=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)
+        return DataLoader(self.test_dataset, batch_size=self.train_batch_size, shuffle=False, num_workers=4, persistent_workers=True)

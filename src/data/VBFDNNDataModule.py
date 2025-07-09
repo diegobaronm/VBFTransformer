@@ -46,7 +46,7 @@ class VBFDNNDataModule(L.LightningDataModule):
         def flat_inputs(input_array, n_particles):
             output_array = input_array[:,:n_particles,:]
             output_array = output_array.transpose(0,2,1)
-            output_array = output_array.reshape(-1, 49)
+            output_array = output_array.reshape(-1, self.n_features)
 
             return output_array
 
@@ -119,7 +119,7 @@ class VBFDNNDataModule(L.LightningDataModule):
         return DataLoader(self.val_dataset, batch_size=self.val_batch_size, shuffle=False, num_workers=self.val_num_workers, persistent_workers=True, drop_last=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)
+        return DataLoader(self.test_dataset, batch_size=self.train_batch_size, shuffle=False, num_workers=4, persistent_workers=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=32*4096, shuffle=False, num_workers=4, persistent_workers=True)
+        return DataLoader(self.test_dataset, batch_size=self.train_batch_size, shuffle=False, num_workers=4, persistent_workers=True)

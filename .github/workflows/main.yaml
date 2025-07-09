@@ -51,4 +51,5 @@ jobs:
 
     - name: Run Transformer performance
       run: |
+        rm results/* # Clear previous results to avoid interactive input request.
         python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformer general.mode=performance

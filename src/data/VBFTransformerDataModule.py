@@ -7,12 +7,15 @@ from loguru import logger
 import h5py
 from numpy.lib import recfunctions as rfn
 from omegaconf import DictConfig
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from src.data.DataScaler import TransformerScaler
 
 class VBFTransformerDataModule(L.LightningDataModule):
     def __init__(self, cfg_object : DictConfig):
         super().__init__()
+        MAX_PARTICLES = 10
         # User-defined parameters
         self.signal_path = cfg_object.dataset.signal_path
         self.background_path = cfg_object.dataset.background_path
@@ -66,8 +69,7 @@ class VBFTransformerDataModule(L.LightningDataModule):
         input_data = input_data_transformed.reshape((input_data.shape[0], input_data_shape[1], 7+1)) # +1 Because you added this in the scaler.
 
         # split data into train, validation, and test sets (You can also do the shuffle here, if not shuffled before)
-        from sklearn.model_selection import train_test_split
-        from sklearn.model_selection import StratifiedShuffleSplit
+
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
         train_indices, test_indices = next(sss.split(input_data, target))
 

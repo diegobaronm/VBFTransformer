@@ -20,12 +20,10 @@ dataset:
   val:
     batch_size: 256
     num_workers: 10
-    
 general:
   device: cuda
   mode: train
   runner: federico
-  
 model:
   extra_features:
   - opening_angle
@@ -38,26 +36,27 @@ model:
   - 128
   - 128
   n_particles: 3
-  name: Smooth_3p_basic
+  name: Terry_InverseGauss_5p_base
   type: DNNRegression
-
-train:
-  dropout_probability: 0.1
-  early_stopping_patience: 10
-  learning_rate: 0.0003
-  loss_fn: SmoothL1Loss
-  loss_fn_params:
-    beta: 10.0
-    reduction: mean
-
-  lr_scheduler_patience: 6
-  n_epochs: 500
-  num_quantiles: 10
-  weight_decay: 1.0e-05
-  
 performance:
   model_ckpt_path: lightning_logs/version_0/checkpoints/
 predict:
   model_ckpt_path: lightning_logs/version_0/checkpoints/
   output_file: predictions.csv
-
+train:
+  dropout_probability: 0.1
+  early_stopping_patience: 10
+  learning_rate: 0.0003
+  loss_fn: InverseGaussianWeightedLoss
+  loss_fn_params:
+    base_loss: SmoothL1Loss
+    base_loss_params:
+      beta: 10.0
+      reduction: mean
+    center: 91.8
+    max_weight: 2.5
+    sigma: 1.5
+  lr_scheduler_patience: 6
+  n_epochs: 400
+  num_quantiles: 10
+  weight_decay: 1.0e-05

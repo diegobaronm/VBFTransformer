@@ -304,8 +304,29 @@ def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, MZ_reco_est
     plt.savefig(os.path.join(folder_name, 'mass_histograms_ranges.png'))
     plt.close(fig3)
 
+import numpy as np
+import torch
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+from sklearn.metrics import mean_squared_error, r2_score
 
-def permutation_feature_importance(model, val_loader, baseline_loss, device, criterion):
+def permutation_feature_importance(model, val_loader, baseline_metric, device, metric_fn, higher_is_better=True):
+    """
+    General permutation feature importance for any metric.
+
+    Args:
+        model: Trained model
+        val_loader: validation DataLoader
+        baseline_metric: baseline metric value on unshuffled data
+        device: torch device
+        metric_fn: function(y_true, y_pred) -> scalar metric
+        higher_is_better: bool, True if metric is score (R²), False if loss (MSE)
+
+    Returns:
+        importances: np.array of feature importances
+    """
     model.eval()
     X_val, y_val = [], []
     for inputs, targets in val_loader:
@@ -315,86 +336,116 @@ def permutation_feature_importance(model, val_loader, baseline_loss, device, cri
     y_val = np.concatenate(y_val)
 
     importances = []
+    batch_size = val_loader.batch_size if hasattr(val_loader, "batch_size") else 32
+
     for col in range(X_val.shape[1]):
         X_val_permuted = X_val.copy()
         np.random.shuffle(X_val_permuted[:, col])
-        total_loss = 0.0
+
+        all_preds = []
+        all_targets = []
 
         with torch.no_grad():
-            for i in range(0, len(X_val), val_loader.batch_size):
-                inputs = torch.tensor(X_val_permuted[i:i+val_loader.batch_size], dtype=torch.float32).to(device)
-                targets = torch.tensor(y_val[i:i+val_loader.batch_size], dtype=torch.float32).to(device)
+            for i in range(0, len(X_val), batch_size):
+                inputs = torch.tensor(X_val_permuted[i:i+batch_size], dtype=torch.float32).to(device)
+                targets = torch.tensor(y_val[i:i+batch_size], dtype=torch.float32).to(device)
                 outputs = model(inputs)
-                loss = criterion(outputs.squeeze(), targets)
-                total_loss += loss.item()
+                all_preds.append(outputs.cpu().numpy())
+                all_targets.append(targets.cpu().numpy())
 
-        avg_loss = total_loss / (len(X_val) // val_loader.batch_size)
-        importances.append(avg_loss - baseline_loss)
+        y_pred_perm = np.concatenate(all_preds).squeeze()
+        y_true = np.concatenate(all_targets).squeeze()
+
+        permuted_metric = metric_fn(y_true, y_pred_perm)
+
+        if higher_is_better:
+            importance = baseline_metric - permuted_metric  # drop in score
+        else:
+            importance = permuted_metric - baseline_metric  # increase in loss
+
+        importances.append(importance)
 
     return np.array(importances)
 
 
-def compute_feature_importance_and_correlation_plot(model, datamodule, loss_fn, device, result_dir, feature_names, trainer=None):
-    # === Step 1: Prepare validation loader ===
-    val_loader = trainer.datamodule.val_dataloader() if trainer else datamodule.val_dataloader()
+def compute_feature_importance_and_correlation_plot(model, datamodule, device, result_dir, feature_names, trainer=None):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
+    val_loader = trainer.datamodule.val_dataloader() if trainer else datamodule.val_dataloader()
     model.eval()
-    baseline_loss = 0.0
+
+    # Collect all val inputs and targets once
+    X_val, y_val = [], []
     with torch.no_grad():
         for inputs, targets in val_loader:
-            inputs_device = inputs.to(device)
-            targets_device = targets.to(device)
-            outputs = model(inputs_device)
-            loss = loss_fn(outputs.squeeze(), targets_device)
-            baseline_loss += loss.item()
-    baseline_loss /= len(val_loader)
+            X_val.append(inputs.cpu().numpy())
+            y_val.append(targets.cpu().numpy())
+    X_val = np.concatenate(X_val)
+    y_val = np.concatenate(y_val)
 
-    # === Step 2: Permutation importance ===
-    importances = permutation_feature_importance(model, val_loader, baseline_loss, device, loss_fn)
+    # Predict on validation set
+    with torch.no_grad():
+        inputs_t = torch.tensor(X_val, dtype=torch.float32).to(device)
+        outputs_t = model(inputs_t).cpu().numpy().squeeze()
 
-    # Sort and filter
-    sorted_idx = np.argsort(importances)[::-1]
-    sorted_importances = importances[sorted_idx]
+    # Compute baseline metrics
+    baseline_mse = mean_squared_error(y_val, outputs_t)
+    baseline_r2 = r2_score(y_val, outputs_t)
+
+    # Compute permutation importances for MSE and R2
+    importances_mse = permutation_feature_importance(
+        model, val_loader, baseline_mse, device, mean_squared_error, higher_is_better=False
+    )
+    importances_r2 = permutation_feature_importance(
+        model, val_loader, baseline_r2, device, r2_score, higher_is_better=True
+    )
+
+    # Sort and filter top features by MSE importance
+    sorted_idx = np.argsort(importances_mse)[::-1]
     sorted_features = [feature_names[i] for i in sorted_idx]
+    importances_mse_sorted = importances_mse[sorted_idx]
+    importances_r2_sorted = importances_r2[sorted_idx]
 
-    # Filter out zero-importance features
-    nonzero_mask = sorted_importances > 0
-    sorted_importances = sorted_importances[nonzero_mask]
-    sorted_features = [f for i, f in enumerate(sorted_features) if nonzero_mask[i]]
+    # Filter zero or negative importance (can happen if permuted_metric < baseline)
+    mask = importances_mse_sorted > 0
+    sorted_features = [f for i, f in enumerate(sorted_features) if mask[i]]
+    importances_mse_sorted = importances_mse_sorted[mask]
+    importances_r2_sorted = importances_r2_sorted[mask]
 
     # Keep top 15
     top_k = 15
     sorted_features = sorted_features[:top_k]
-    sorted_importances = sorted_importances[:top_k]
+    importances_mse_sorted = importances_mse_sorted[:top_k]
+    importances_r2_sorted = importances_r2_sorted[:top_k]
 
-    # === Step 3: Correlation matrix for top features ===
-    all_inputs = []
-    for inputs, _ in val_loader:
-        inputs_cpu = inputs.detach().cpu().numpy()
-        all_inputs.append(inputs_cpu)
-    X_all = np.concatenate(all_inputs, axis=0)
+    # Correlation matrix for top features
+    df = pd.DataFrame(X_val, columns=feature_names)
+    df_top = df[sorted_features]
+    corr_matrix = df_top.corr(method='pearson')
 
-    df = pd.DataFrame(X_all, columns=feature_names)
-    df = df[sorted_features]  # Keep only top 15
-    corr_matrix = df.corr(method='pearson')
-
-    # === Step 4: Plot combined visualization ===
+    # Plotting
     height_per_feature = 0.5
     fig_height = max(8, top_k * height_per_feature)
-    fig, axes = plt.subplots(1, 2, figsize=(18, fig_height))
+    fig, axes = plt.subplots(1, 3, figsize=(24, fig_height))
 
-    # Left: Permutation Importances
-    axes[0].barh(sorted_features, sorted_importances, color='steelblue')
-    axes[0].set_xlabel("Increase in loss function after permutation", fontsize=18)
-    axes[0].set_title("Top 15 Permutation Feature Importances", fontsize=20)
+    # MSE Importances plot
+    axes[0].barh(sorted_features, importances_mse_sorted, color='steelblue')
+    axes[0].set_xlabel("Increase in MSE after permutation", fontsize=14)
+    axes[0].set_title("Top 15 Feature Importances (MSE)", fontsize=16)
     axes[0].invert_yaxis()
-    axes[0].tick_params(axis='y', labelsize=14)
-    axes[0].tick_params(axis='x', labelsize=14)
+    axes[0].tick_params(axis='y', labelsize=12)
+    axes[0].tick_params(axis='x', labelsize=12)
 
-    for label in axes[0].get_yticklabels():
-        label.set_rotation(0)
+    # R2 Importances plot
+    axes[1].barh(sorted_features, importances_r2_sorted, color='darkorange')
+    axes[1].set_xlabel("Decrease in R² after permutation", fontsize=14)
+    axes[1].set_title("Top 15 Feature Importances (R²)", fontsize=16)
+    axes[1].invert_yaxis()
+    axes[1].tick_params(axis='y', labelsize=12)
+    axes[1].tick_params(axis='x', labelsize=12)
 
-    # Right: Correlation Heatmap
+    # Correlation heatmap
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
     sns.heatmap(
         corr_matrix,
@@ -403,15 +454,15 @@ def compute_feature_importance_and_correlation_plot(model, datamodule, loss_fn, 
         cmap='coolwarm',
         linewidths=0.5,
         cbar_kws={"shrink": 0.8},
-        ax=axes[1],
+        ax=axes[2],
+        annot=True,
         annot_kws={"size": 10}
     )
-    axes[1].set_title("Correlation (Top 15 Features)", fontsize=20)
-    axes[1].tick_params(axis='x', labelrotation=90, labelsize=14)
-    axes[1].tick_params(axis='y', labelrotation=0, labelsize=14)
+    axes[2].set_title("Correlation (Top 15 Features)", fontsize=16)
+    axes[2].tick_params(axis='x', labelrotation=90, labelsize=12)
+    axes[2].tick_params(axis='y', labelrotation=0, labelsize=12)
 
     plt.tight_layout()
     os.makedirs(result_dir, exist_ok=True)
-    plt.savefig(f"{result_dir}/Importance_and_Correlation.png", dpi=100)
+    plt.savefig(f"{result_dir}/Importance_and_Correlation_MSE_R2.png", dpi=150)
     plt.close(fig)
-

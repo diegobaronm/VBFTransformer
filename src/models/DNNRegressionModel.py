@@ -161,7 +161,7 @@ class VBFDNNRegression(L.LightningModule):
     
 
         compute_feature_importance_and_correlation_plot(
-            model=self.model, datamodule=self.trainer.datamodule, loss_fn=self.loss_fn, device=self.device,
+            model=self.model, datamodule=self.trainer.datamodule, device=self.device,
             result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer
         )
         

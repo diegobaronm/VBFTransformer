@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.12
   - matplotlib
+  - seaborn 
   - pandas
   - h5py
   - scikit-learn

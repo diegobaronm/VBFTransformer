@@ -1,0 +1,59 @@
+general:
+  mode: train
+  runner: federico
+  device: cuda
+dataset:
+  input_files:
+  - tests/configs/test_config_DNN_regression.yaml
+  
+  persistent_workers: true
+  train:
+    num_workers: 10
+    batch_size: 2048
+  val:
+    num_workers: 10
+    batch_size: 1024
+  scaling_dict:
+    energy: logminmax
+    eta: standardscaler
+    phi: phitransformer
+    pt: logminmax
+    btag: minmax
+    charge: none
+    type: none
+  extra_scaling_dict:
+    mz_reco: logminmax
+model:
+  type: DNNRegression
+  layers:
+  - 128
+  - 128
+  name: DNN_Regression_Test
+  n_particles: 7
+  features:
+  - energy
+  - eta
+  - phi
+  - pt
+  - btag
+  - charge
+  - type
+  extra_features:
+  - mz_reco
+train:
+  n_epochs: 500
+  learning_rate: 0.0003
+  dropout_probability: 0.1
+  weight_decay: 1.0e-05
+  lr_scheduler_patience: 6
+  early_stopping_patience: 10
+  num_quantiles: 10
+  loss_fn: SmoothL1Loss
+  loss_fn_params:
+    beta: 10.0
+    reduction: mean
+predict:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  output_file: predictions.csv
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/

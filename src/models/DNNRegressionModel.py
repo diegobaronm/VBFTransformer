@@ -18,9 +18,8 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError, R2Score
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # === Local utility imports ===
-sys.path.append(os.path.abspath("src/utils"))
-from Plotting import plot_metrics, permutation_feature_importance, compute_feature_importance_and_correlation_plot
-from LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
+from src.utils.Plotting import plot_metrics, permutation_feature_importance, compute_feature_importance_and_correlation_plot
+from src.utils.LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
 
 class SimpleDNN(nn.Module):
     def __init__(self, n_inputs, hidden_layers, dropout_prob=0.1):

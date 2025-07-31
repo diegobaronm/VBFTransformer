@@ -16,10 +16,8 @@ import sys
 
 from src.data.DataHelpers import read_h5_data, load_multiple_h5, flat_inputs, add_features, get_particle_feature_index_ranges, get_full_feature_index_ranges
 
-sys.path.append(os.path.abspath("src/utils")) # Add the relative or absolute path to the other folder
-
-from Plotting import plot_particle_distributions
-from PrettyPrinting import prettify_feature_names
+from src.utils.Plotting import plot_particle_distributions
+from src.utils.PrettyPrinting import prettify_feature_names
 
 class MetadataIndex(Enum):
     # EVENT_NUMBER = 0 No need to assing this a n

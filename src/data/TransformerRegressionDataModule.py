@@ -16,10 +16,8 @@ import sys
 
 from src.data.DataHelpers import read_h5_data, load_multiple_h5, flat_inputs, add_features, get_particle_feature_index_ranges, get_full_feature_index_ranges
 
-sys.path.append(os.path.abspath("src/utils")) # Add the relative or absolute path to the other folder
-
-from Plotting import plot_particle_distributions
-from PrettyPrinting import prettify_feature_names
+from src.utils.Plotting import plot_particle_distributions
+from src.utils.PrettyPrinting import prettify_feature_names
 
 class MetadataIndex(Enum):
     # EVENT_NUMBER = 0 No need to assing this a n
@@ -181,12 +179,11 @@ class VBFTransformerRegressionDataModule(L.LightningDataModule):
                 )
 
         # Reshape post plotting for training
-        VEC_DIMENSION  = X_train.shape[1] // self.n_particles 
-
-        logger.info(f"Vec dimension {VEC_DIMENSION}")
-        X_train = X_train.reshape(X_train.shape[0], VEC_DIMENSION, -1)
-        X_val   = X_val.reshape(X_val.shape[0], VEC_DIMENSION, -1)
-        X_test  = X_test.reshape(X_test.shape[0], VEC_DIMENSION, -1)
+        self.input_dim  = X_train.shape[1] // self.n_particles 
+        
+        X_train = X_train.reshape(X_train.shape[0], self.input_dim, -1)
+        X_val   = X_val.reshape(X_val.shape[0], self.input_dim, -1)
+        X_test  = X_test.reshape(X_test.shape[0], self.input_dim, -1)
 
         # You always have to transpose the last two dimensions
         X_train = X_train.transpose(0, 2, 1)
@@ -200,6 +197,7 @@ class VBFTransformerRegressionDataModule(L.LightningDataModule):
         self.test_dataset  = TensorDataset(self.__to_tensor(X_test),  torch.tensor(y_test,  dtype=torch.float32))
     
         # === Log sizes === #
+        logger.info(f"The lenght of each token is: {self.input_dim}")
         logger.info(f"Training dataset size: {len(y_train)}")
         logger.info(f"Validation dataset size: {len(y_val)}")
         logger.info(f"Test dataset size: {len(y_test)}")

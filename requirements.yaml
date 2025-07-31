@@ -13,6 +13,7 @@ dependencies:
   - pip
   - pip:
       - polars
+      - ptflops
       - hydra-core
       - rich
       - loguru
@@ -20,4 +21,5 @@ dependencies:
       - torch
       - torchvision
       - torchaudio
+      - torchinfo
       - lightning==2.5.*

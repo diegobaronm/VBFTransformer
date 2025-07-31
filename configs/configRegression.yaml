@@ -1,0 +1,63 @@
+dataset:
+  extra_scaling_dict:
+    lep_met_angle_signed: standardscaler
+    opening_angle: minmax
+  input_files:
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20a_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20d_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20e_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20a_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20d_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20e_fullsim.h5
+  persistent_workers: true
+  scaling_dict:
+    energy: logminmax
+    eta: standardscaler
+    pt: logminmax
+  train:
+    batch_size: 512
+    num_workers: 10
+  val:
+    batch_size: 256
+    num_workers: 10
+    
+general:
+  device: cuda
+  mode: train
+  runner: federico
+  
+model:
+  extra_features:
+  - opening_angle
+  - lep_met_angle_signed
+  features:
+  - energy
+  - eta
+  - pt
+  layers:
+  - 128
+  - 128
+  n_particles: 3
+  name: Smooth_3p_basic
+  type: DNNRegression
+
+train:
+  dropout_probability: 0.1
+  early_stopping_patience: 10
+  learning_rate: 0.0003
+  loss_fn: SmoothL1Loss
+  loss_fn_params:
+    beta: 10.0
+    reduction: mean
+
+  lr_scheduler_patience: 6
+  n_epochs: 500
+  num_quantiles: 10
+  weight_decay: 1.0e-05
+  
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+predict:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  output_file: predictions.csv
+

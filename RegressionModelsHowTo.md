@@ -129,7 +129,7 @@ Available loss functions are listed in [`src/utils/LossFunctions.py`](src/utils/
   Enables PyTorch TF32 matmul optimization (trades precision for speed).
 
 - **Transformer-specific:**  
-  - `compute_pairing_tokens`: Set to `true` to add interaction tokens between particles as described in [paper link needed]. Adds a separate interaction embedder with layers matching the particle embedder.
+  - `compute_interaction_tokens`: Set to `True` to add interaction tokens between particles as described in [10.1088/1674-1137/ad7f3d]. Adds a separate interaction embedder with layers matching the particle embedder.
 
 ---
 
@@ -160,24 +160,23 @@ Layer 0 - Head Diversity                : 0.0001
 Layer 1 - Attention Entropy             : 1.2898
 Layer 1 - Attention Sparsity            : 0.8587
 Layer 1 - Head Diversity                : 0.242
-Layer 2 - Attention Entropy             : 1.2748
-Layer 2 - Attention Sparsity            : 0.8305
-Layer 2 - Head Diversity                : 0.1866
 Mean Absolute Error (MAE)               : 7.9856
 Mean Fractional Bias (MFB)              : 0.0019
 Mean Squared Error (MSE)                : 575.2
 Median Absolute Error                   : 2.6198
+Root Mean Squared Log Error (RMSLE)     : 0.1217
+R² Score                                : 0.8064
+
+## === Model Metrics === ##
 Number of Parameters                    : 850,305
 Number of Training Events               : 155,536
 Peak GPU Memory Usage (MB)              : 969.38
-Root Mean Squared Log Error (RMSLE)     : 0.1217
-R² Score                                : 0.8064
 Total Training Time (HH:MM:SS)          : 0:03:14
 Training Batch Size                     : 4096
 Validation Batch Size                   : 2048
 ```
 
-- Metrics are also saved in YAML format to facilitate automated model comparisons.
+- Metrics are also saved in YAML format to facilitate comparing models using code.
 
 - Feature importance plots and performance-related plots are generated and saved in the model directory.
 

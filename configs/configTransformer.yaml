@@ -17,13 +17,13 @@ dataset:
 model:
   type: Transformer
   input_dim: 8
-  n_heads: 16
+  n_heads: 4
   n_layers: 3
   n_particles: 5
 
 train:
   n_epochs: 100
-  learning_rate: 0.002
+  learning_rate: 0.0003
   dropout_probability: 0.1
 predict:
   model_ckpt_path: lightning_logs/version_15/checkpoints/

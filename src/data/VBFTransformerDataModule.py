@@ -15,7 +15,7 @@ from src.data.DataScaler import TransformerScaler
 class VBFTransformerDataModule(L.LightningDataModule):
     def __init__(self, cfg_object : DictConfig):
         super().__init__()
-        MAX_PARTICLES = 10
+
         # User-defined parameters
         self.signal_path = cfg_object.dataset.signal_path
         self.background_path = cfg_object.dataset.background_path
@@ -76,7 +76,6 @@ class VBFTransformerDataModule(L.LightningDataModule):
         X_train, y_train = input_data[train_indices], target[train_indices]
         X_temp, y_temp = input_data[test_indices], target[test_indices]
         X_val, X_test, y_val, y_test     = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)
-
 
         # As tensors
         X_train_tensor = torch.tensor(X_train, dtype=torch.float32)

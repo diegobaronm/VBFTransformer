@@ -145,7 +145,6 @@ class TanhScaler(BaseEstimator, TransformerMixin):
 
 # This scaler is needed when not applying scaling to data, if remainder='passthrough' is used the scaled data 
 # is put before the un-scaled data hence shuffling the tensor and causing problems when plotting
-
 class NoOpScaler(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         return self  # No fitting needed

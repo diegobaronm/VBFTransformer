@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 import torch
 import polars as pl
-import gc # Garbage collector
 import math
 import matplotlib.pyplot as plt
 from numpy.lib import recfunctions as rfn

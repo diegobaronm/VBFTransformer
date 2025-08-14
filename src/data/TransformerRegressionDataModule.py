@@ -100,7 +100,8 @@ class VBFTransformerRegressionDataModule(L.LightningDataModule):
     
         # === Split data === #
         indices = np.arange(len(input_data))
-        
+
+        # Add the extra feature to all the tokens
         if self.using_cross_attention or self.compute_pairing_tokens:
             
             if self.compute_pairing_tokens: 
@@ -235,9 +236,29 @@ class VBFTransformerRegressionDataModule(L.LightningDataModule):
         p_val = p_val.transpose(0, 2, 1)
         p_test = p_test.transpose(0, 2, 1)
 
-        if self.trainer.datamodule.using_cross_attention or self.compute_pairing_tokens:
-            print(f'Shape of interaction training tokens: {m_train.shape}')
-        print(f'Shape of particle training tokens: {p_train.shape}')
+
+        logger.info(f"Shape of particle input data {p_train.shape}")
+
+        logger.info(p_train[0, :, :])
+        
+        if self.using_cross_attention:
+            extra_train_expanded = np.expand_dims(m_train, axis=1)  # (batch_size, 1, num_extra_features)
+            extra_train_tiled = np.tile(extra_train_expanded, (1, p_train.shape[1], 1)) 
+            p_train = np.concatenate([p_train, extra_train_tiled], axis=2)
+            
+            extra_val_expanded = np.expand_dims(m_val, axis=1)  # (batch_size, 1, num_extra_features)
+            extra_val_tiled = np.tile(extra_val_expanded, (1, p_val.shape[1], 1)) 
+            p_val = np.concatenate([p_val, extra_val_tiled], axis=2)
+            
+            extra_test_expanded = np.expand_dims(m_test, axis=1)  # (batch_size, 1, num_extra_features)
+            extra_test_tiled = np.tile(extra_test_expanded, (1, p_test.shape[1], 1)) 
+            p_test = np.concatenate([p_test, extra_test_tiled], axis=2)
+
+            self.using_cross_attention = False
+            self.input_dim += m_train.shape[1]
+            
+            logger.info(p_train[0, :, :])
+            logger.info(f'Shape of particle training tokens post extra features: {p_train.shape}')
 
         if self.trainer.datamodule.using_cross_attention or self.compute_pairing_tokens:
             logger.info("Creating a dataset with metada")

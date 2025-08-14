@@ -12,6 +12,7 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 # === PyTorch and Related ===
 import torch
 from torch.utils.data import DataLoader
+from loguru import logger
 
 
 def plot_particle_distributions(left_tail_indices, right_tail_indices, signal_data, x_range=None, title='', titles=None, n_bins=40, no_particle_name=False, folder_name=''):
@@ -185,15 +186,16 @@ def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, MZ_reco_est
     plt.savefig(os.path.join(folder_name, 'loss_landscape_dual_view.png'))
     plt.close(fig1)
     
-    # === SECOND FIGURE: Three 2D Histograms for Low, Mid, High Mass Ranges ===
-    fig2, axs = plt.subplots(1, 3, figsize=(20, 6))
+    # === SECOND FIGURE: Four 2D Histograms for Low, Mid, High Mass Ranges ===
+    fig2, axs = plt.subplots(1, 4, figsize=(27, 6))
     
     cmap = plt.cm.viridis
     cmap_white_zero = cmap.copy()
     cmap_white_zero.set_under('white')
     
+
     r2_global = r2_score(y_true_test, y_pred_test)
-    
+   
     # --- Low mass region: 40–80 GeV ---
     hist_low = axs[0].hist2d(
         y_true_test, y_pred_test,
@@ -249,6 +251,38 @@ def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, MZ_reco_est
     axs[2].grid(True, linestyle='--', alpha=0.3)
     axs[2].minorticks_on()
     fig2.colorbar(hist_high[3], ax=axs[2], label='Counts', pad=0.02, fraction=0.05).ax.tick_params(labelsize=tick_fontsize)
+
+
+    # Determine log-scale axis bounds with padding
+    low = np.log(min(np.min(y_pred_test), np.min(y_true_test)) * 0.95)
+    high = np.log(max(np.max(y_pred_test), np.max(y_true_test)) * 1.05)
+    
+    # 2D histogram in log-space with log color scale
+    hist_general = axs[3].hist2d(
+        np.log(y_true_test), 
+        np.log(y_pred_test),
+        bins=100,
+        range=[[low, high], [low, high]],
+        cmap=cmap_white_zero,
+        norm=colors.LogNorm(vmin=1)  # <-- Log scale for colorbar
+    )
+    
+    # Diagonal reference line
+    axs[3].plot([low, high], [low, high], 'k--', linewidth=2)
+    
+    # Axis labels and formatting
+    axs[3].set_xlabel("Ln True Mass [GeV]", fontsize=label_fontsize)
+    axs[3].set_ylabel("Ln Predicted Mass [GeV]", fontsize=label_fontsize)
+    axs[3].set_title("Ln 2D Histogram [GeV]", fontsize=title_fontsize)
+    axs[3].tick_params(axis='both', labelsize=tick_fontsize)
+    axs[3].grid(True, linestyle='--', alpha=0.3)
+    axs[3].minorticks_on()
+    
+    # Colorbar with proper labeling
+    fig2.colorbar(
+        hist_general[3], ax=axs[3], label='Log Counts', pad=0.02, fraction=0.05
+    ).ax.tick_params(labelsize=tick_fontsize)
+    
     
     plt.tight_layout()
     plt.savefig(os.path.join(folder_name, '2d_hist_by_mass_range.png'))
@@ -306,155 +340,405 @@ def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, MZ_reco_est
     plt.savefig(os.path.join(folder_name, 'mass_histograms_ranges.png'))
     plt.close(fig3)
 
-def permutation_feature_importance(model, val_loader, baseline_metric, device, metric_fn, higher_is_better=True, transformer=False):
-    # Pre-load entire validation set
-    X_val, y_val = [], []
-    for inputs, targets in val_loader:
-        X_val.append(inputs.cpu().numpy())
-        y_val.append(targets.cpu().numpy())
-    X_val = np.concatenate(X_val)
-    y_val = np.concatenate(y_val)
+def extract_layer_mats(attn_per_example):
+    """
+    Convert a list of attention tensors (for one example) into numpy matrices per layer.
+    - attn_per_example: list of torch.Tensor on CPU, each of shape (heads, seq_len, seq_len)
+                        or (seq_len, seq_len).
+    Returns a list of numpy arrays of shape (seq_len, seq_len), averaged over heads if needed.
+    """
+    layers = []
+    for attn in attn_per_example:
+        arr = attn.numpy()  # dims = 3 (heads, seq, seq) or 2 (seq, seq)
+        if arr.ndim == 3:
+            arr = arr.mean(axis=0)  # average over head dimension
+        layers.append(arr)
+    return layers
 
-    batch_size = getattr(val_loader, "batch_size", 32)
 
+def compute_attention_rollout(layer_mats):
+    """
+    layer_mats: list of numpy arrays of shape
+      • (batch, heads, seq, seq), or
+      • (batch, seq, seq), or
+      • (heads, seq, seq), or
+      • (seq, seq)
+
+    This will average over all leading dims so that each mat is (seq, seq).
+    """
+    mats = []
+    for mat in layer_mats:
+        # collapse any extra dims beyond the final two
+        extra_axes = tuple(range(mat.ndim - 2))
+        if extra_axes:
+            mat = mat.mean(axis=extra_axes)
+        # now mat.shape == (seq, seq)
+        mats.append(mat)
+
+    # sanity check: they all use the same sequence length
+    seq_len = mats[0].shape[-1]
+    assert all(m.shape == (seq_len, seq_len) for m in mats), \
+        "Inconsistent seq_len in attention matrices"
+
+    # build augmented matrices and multiply
+    aug = [
+        (m + np.eye(seq_len)) /
+        (m.sum(axis=-1, keepdims=True) + 1e-6)
+        for m in mats
+    ]
+    rollout = aug[0]
+    for m in aug[1:]:
+        rollout = m @ rollout
+    return rollout
+
+
+def plot_and_save_attention(attn_per_example, save_dir):
+    """
+    Given one example’s list of attention tensors and a target directory,
+    computes attention rollout and token importance, then saves two plots.
+
+    Args:
+        attn_per_example: list of torch.Tensor on CPU, each of shape
+                          (heads, seq_len, seq_len) or (seq_len, seq_len).
+        save_dir (str): directory path where to save the plots.
+    
+    Returns:
+        dict: paths to the saved images, keys "rollout" and "importance".
+    """
+    # ensure output directory exists
+    os.makedirs(save_dir, exist_ok=True)
+
+    # --- extract per-layer numpy mats ---
+    layer_mats = []
+    for attn in attn_per_example:
+        arr = attn.detach().cpu().numpy()
+        # collapse any dimensions beyond the final two (batch, heads, etc.)
+        extra_axes = tuple(range(arr.ndim - 2))
+        if extra_axes:
+            arr = arr.mean(axis=extra_axes)
+        # now arr.shape == (seq_len, seq_len)
+        layer_mats.append(arr)
+
+    # --- compute rollout ---
+    seq_len = layer_mats[0].shape[0]
+    aug = [(mat + np.eye(seq_len)) / (mat.sum(axis=-1, keepdims=True) + 1e-6)
+           for mat in layer_mats]
+    rollout = aug[0]
+    for mat in aug[1:]:
+        rollout = mat @ rollout
+
+    # Only two jets for now
+    num_interaction_features = seq_len - 5
+    labels = ["lep", "tau", "MET"] + ["jet1", "jet2"] + [f"jet{i+1}" for i in range(num_interaction_features)]
+
+    # --- plot & save rollout heatmap ---
+    fig1, ax1 = plt.subplots(figsize=(6, 5))
+    im = ax1.imshow(rollout, aspect='auto')
+    
+    # set ticks at every position
+    ax1.set_xticks(range(seq_len))
+    ax1.set_yticks(range(seq_len))
+    
+    # label them with our token names (rotate x for readability)
+    ax1.set_xticklabels(labels, rotation=45, ha="right")
+    ax1.set_yticklabels(labels)
+    
+    ax1.set_title('Attention Rollout Heatmap')
+    ax1.set_xlabel('Source Token')
+    ax1.set_ylabel('Target Token')
+    fig1.colorbar(im, ax=ax1, label='Rollout Weight')
+    
+    rollout_path = os.path.join(save_dir, "rollout.png")
+    fig1.tight_layout()
+    fig1.savefig(rollout_path)
+    plt.close(fig1)
+    
+    
+    # --- compute & plot token importance ---
+    importance = rollout.sum(axis=0)
+    
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    ax2.bar(range(seq_len), importance)
+    
+    # apply the same labels
+    ax2.set_xticks(range(seq_len))
+    ax2.set_xticklabels(labels, rotation=45, ha="right")
+    
+    ax2.set_title('Token Importance from Rollout')
+    ax2.set_xlabel('Token')
+    ax2.set_ylabel('Accumulated Importance')
+    
+    fig2.tight_layout()
+    importance_path = os.path.join(save_dir, "importance.png")
+    fig2.savefig(importance_path)
+    plt.close(fig2)
+
+
+
+def permutation_feature_importance_fast(
+    model, val_loader, metric_fn, device,      
+    higher_is_better=True, transformer=False, batch_size=1024
+):
+    # 1) Preload entire dataset once onto GPU as a single tensor
+    X_list, y_list = [], []
+    for Xb, yb in val_loader:
+        X_list.append(Xb)
+        y_list.append(yb)
+    X_val_t = torch.cat(X_list, dim=0).to(device)         # shape (N,...) on GPU
+    y_true  = torch.cat(y_list, dim=0).to(device).squeeze()
+
+    N = X_val_t.shape[0]
     if transformer:
-        N, T, F = X_val.shape
-        num_features = T * F
-        X_val_flat = X_val.reshape(N, -1)
+        _, T, F = X_val_t.shape
+        importances = torch.zeros(T, F, device=device)
     else:
-        N, num_features = X_val.shape
-        X_val_flat = X_val  # already flat
-
-    # Cache targets for all samples
-    y_true = y_val.squeeze()
-
-    # Cache model predictions once for the baseline
+        _, F = X_val_t.shape
+        importances = torch.zeros(F, device=device)
+        
+    # 2) Compute baseline prediction once
     with torch.no_grad():
-        inputs_torch = torch.tensor(X_val_flat, dtype=torch.float32).to(device)
-        preds = model(inputs_torch).cpu().numpy().squeeze()
-    baseline = baseline_metric(y_true, preds)
+        preds_base = model(X_val_t).squeeze()
+    base_score = metric_fn(y_true.cpu().numpy(), preds_base.cpu().numpy())
 
-    # Initialize importance array
-    importances = np.zeros(num_features)
-
-    # Use a single tensor to avoid recreating it every time
-    inputs_tensor = torch.empty_like(inputs_torch)
-
-    for i in range(num_features):
-        X_perm = X_val_flat.copy()
-        np.random.shuffle(X_perm[:, i])  # shuffle in-place
-
-        # Run full prediction in one go (avoids batching)
-        inputs_tensor.copy_(torch.tensor(X_perm, dtype=torch.float32))
+    # 3) Helper to run batched prediction on a GPU tensor
+    def batched_predict(X):
+        out = []
         with torch.no_grad():
-            preds_perm = model(inputs_tensor.to(device)).cpu().numpy().squeeze()
+            for i in range(0, N, batch_size):
+                out.append(model(X[i : i + batch_size]))
+        return torch.cat(out).squeeze()
 
-        score = metric_fn(y_true, preds_perm)
-        importances[i] = baseline - score if higher_is_better else score - baseline
+    # 4) In‐place shuffle + restore for each feature (or token×feature)
+    if transformer:
+        for t in range(T):
+            for f in range(F):
+                # backup column t,f
+                backup = X_val_t[:, t, f].clone()
+                perm    = torch.randperm(N, device=device)
+                X_val_t[:, t, f] = X_val_t[perm, t, f]
 
-    return importances
+                preds_p = batched_predict(X_val_t)
+                score_p = metric_fn(y_true.cpu().numpy(), preds_p.cpu().numpy())
+                delta   = (base_score - score_p) if higher_is_better else (score_p - base_score)
+                importances[t, f] = delta
 
+                # restore
+                X_val_t[:, t, f] = backup
 
-def compute_feature_importance_and_correlation_plot(model, datamodule, device, result_dir, feature_names, trainer=None, transformer=False):
+    else:
+        for f in range(F):
+            backup = X_val_t[:, f].clone()
+            perm   = torch.randperm(N, device=device)
+            X_val_t[:, f] = X_val_t[perm, f]
 
+            preds_p = batched_predict(X_val_t)
+            score_p = metric_fn(y_true.cpu().numpy(), preds_p.cpu().numpy())
+            delta   = (base_score - score_p) if higher_is_better else (score_p - base_score)
+            importances[f] = delta
+
+            X_val_t[:, f] = backup
+
+    return importances.cpu().numpy()
+
+def plot_feature_importance(
+    importances, result_dir, feature_names, transformer=False
+):
+    os.makedirs(result_dir, exist_ok=True)
+
+    logger.info("Now plotting feature importance")
+    if transformer:
+        # Token × Feature heatmap
+        T, F = importances.shape
+        
+        logger.info(f'Importances shape: {importances.shape}')
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.heatmap(
+            importances,
+            xticklabels=feature_names,
+            yticklabels=[f"token {i}" for i in range(T)],
+            annot=True, fmt=".3f", ax=ax
+        )
+        ax.set_title("Permutation Importance per Token × Feature")
+        plt.tight_layout()
+        plt.savefig(f"{result_dir}/token_importance.png", dpi=150)
+        plt.close(fig)
+    else:
+        # Simple bar chart for non-transformer
+        F = importances.shape[0]
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.barh(feature_names, importances, color='steelblue')
+        ax.set_xlabel("Importance (Δ score)")
+        ax.set_title("Feature Importances")
+        ax.invert_yaxis()
+        plt.tight_layout()
+        plt.savefig(f"{result_dir}/feature_importance.png", dpi=150)
+        plt.close(fig)
+
+# Example of integrating in compute_feature_importance_and_correlation_plot
+def compute_feature_importance_and_correlation_plot(
+    model, datamodule, device, result_dir,
+    feature_names, trainer=None, transformer=False
+):
     val_loader = trainer.datamodule.val_dataloader() if trainer else datamodule.val_dataloader()
 
-    # Collect all val inputs and targets once
+    # Load validation data
     X_val, y_val = [], []
     with torch.no_grad():
         for inputs, targets in val_loader:
             X_val.append(inputs.cpu().numpy())
             y_val.append(targets.cpu().numpy())
     X_val = np.concatenate(X_val)
-    y_val = np.concatenate(y_val)
+    y_val = np.concatenate(y_val).squeeze()
 
-    # Predict on validation set
+    # Baseline predictions and metrics
+    inputs_t = torch.tensor(X_val, dtype=torch.float32).to(device)
     with torch.no_grad():
-        inputs_t = torch.tensor(X_val, dtype=torch.float32).to(device)
-        outputs_t = model(inputs_t).cpu().numpy().squeeze()
+        preds = model(inputs_t).cpu().numpy().squeeze()
 
-    # Compute baseline metrics
-    baseline_mse = mean_squared_error(y_val, outputs_t)
-    baseline_r2 = r2_score(y_val, outputs_t)
-    baseline_mae = mean_absolute_error(y_val, outputs_t)
+    # In transformer mode override feature names
+    if transformer:
+        _, T, F = X_val.shape
+        feature_names = ['energy', 'eta', 'cos(phi)', 'sin(phi)', 'pt', 'btag', 'charge', 'type']
     
-    importances_mse = permutation_feature_importance(
-        model, val_loader, baseline_mse, device, mean_squared_error, higher_is_better=False, transformer=transformer
+    # Compute permutation importances for each metric
+    imp_mse = permutation_feature_importance_fast(
+        model, val_loader, mean_squared_error, device, higher_is_better=False,
+        transformer=transformer
     )
-    importances_r2 = permutation_feature_importance(
-        model, val_loader, baseline_r2, device, r2_score, higher_is_better=True, transformer=transformer
+    imp_r2 = permutation_feature_importance_fast(
+        model, val_loader, r2_score, device, higher_is_better=True,
+        transformer=transformer
     )
-    importances_mae = permutation_feature_importance(
-        model, val_loader, baseline_mae, device, mean_absolute_error, higher_is_better=False, transformer=transformer
+    imp_mae = permutation_feature_importance_fast(
+        model, val_loader, mean_absolute_error, device, higher_is_better=False,
+        transformer=transformer
     )
-    
-    sorted_idx = np.argsort(importances_mse)[::-1]
-    sorted_features = [feature_names[i] for i in sorted_idx]
-    mask = importances_mse[sorted_idx] > 0
-    sorted_features = [f for i, f in enumerate(sorted_features) if mask[i]]
-    
-    top_k = 15
-    sorted_features = sorted_features[:top_k]
-    
-    importances_mse_sorted = importances_mse[sorted_idx][mask][:top_k]
-    importances_r2_sorted = importances_r2[sorted_idx][mask][:top_k]
-    importances_mae_sorted = importances_mae[sorted_idx][mask][:top_k]
 
-    # Have to flatten array to accomodate the added token dimension
-    if transformer: 
-        X_val = X_val.reshape(X_val.shape[0], -1)
-        
-    # Compute correlation matrix of top features in validation data
-    top_feature_indices = [feature_names.index(f) for f in sorted_features]
-    X_val_top_features = X_val[:, top_feature_indices]
-    corr_matrix = np.corrcoef(X_val_top_features, rowvar=False)
-
-    fig, axes = plt.subplots(1, 4, figsize=(32, 8))
-
-    # MSE Importances plot
-    axes[0].barh(sorted_features, importances_mse_sorted, color='steelblue')
-    axes[0].set_xlabel("Increase in MSE after permutation", fontsize=14)
-    axes[0].set_title("Top 15 Feature Importances (MSE)", fontsize=16)
-    axes[0].invert_yaxis()
-    axes[0].tick_params(axis='y', labelsize=12)
-    axes[0].tick_params(axis='x', labelsize=12)
-    
-    # R2 Importances plot
-    axes[1].barh(sorted_features, importances_r2_sorted, color='darkorange')
-    axes[1].set_xlabel("Decrease in R² after permutation", fontsize=14)
-    axes[1].set_title("Top 15 Feature Importances (R²)", fontsize=16)
-    axes[1].invert_yaxis()
-    axes[1].tick_params(axis='y', labelsize=12)
-    axes[1].tick_params(axis='x', labelsize=12)
-    
-    # MAE Importances plot
-    axes[2].barh(sorted_features, importances_mae_sorted, color='seagreen')
-    axes[2].set_xlabel("Increase in MAE after permutation", fontsize=14)
-    axes[2].set_title("Top 15 Feature Importances (MAE)", fontsize=16)
-    axes[2].invert_yaxis()
-    axes[2].tick_params(axis='y', labelsize=12)
-    axes[2].tick_params(axis='x', labelsize=12)
-        
-    # Correlation heatmap
-    mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-    sns.heatmap(
-        corr_matrix,
-        mask=mask,
-        fmt=".2f",
-        cmap='coolwarm',
-        linewidths=0.5,
-        cbar_kws={"shrink": 0.8},
-        ax=axes[3]
-    )
-    axes[3].set_xticks(np.arange(len(sorted_features)))
-    axes[3].set_yticks(np.arange(len(sorted_features)))
-    axes[3].set_xticklabels(sorted_features, rotation=90, fontsize=12)
-    axes[3].set_yticklabels(sorted_features, rotation=0, fontsize=12)
-    axes[3].set_title("Correlation (Top 15 Features)", fontsize=16)
-    axes[3].tick_params(axis='x', labelrotation=90, labelsize=12)
-    axes[3].tick_params(axis='y', labelrotation=0, labelsize=12)
-    
-    plt.tight_layout()
     os.makedirs(result_dir, exist_ok=True)
-    plt.savefig(f"{result_dir}/Importance_and_Correlation.png", dpi=150)
-    plt.close(fig)
+    if transformer:
+        # Token × Feature heatmap for transformer models
+
+        T, F = imp_mse.shape
+        yticklabels = ["Lep", "Tau", "MET"] + [f"Jet {i}" for i in range(T - 3)]
+
+        for metric_name, importance_matrix in zip(
+            ["mse", "mae", "r2"],
+            [imp_mse, imp_mae, imp_r2]
+        ):
+            fig, ax = plt.subplots(figsize=(8, 5))
+            sns.heatmap(
+                importance_matrix,
+                xticklabels=feature_names,
+                yticklabels=yticklabels,
+                annot=True, fmt=".3f", ax=ax
+            )
+            ax.set_title(f"Permutation Importance per Token × Feature ({metric_name.upper()})")
+            plt.tight_layout()
+            plt.savefig(f"{result_dir}/token_feature_importance_{metric_name}.png", dpi=150)
+            plt.close(fig)
+
+    else:
+        # Simple bar chart for non-transformer models
+        for metric_name, importance_vector, xlabel in zip(
+            ["mse", "mae", "r2"],
+            [imp_mse, imp_mae, imp_r2],
+            [
+                "Increase in MSE after permutation",
+                "Increase in MAE after permutation",
+                "Decrease in R² after permutation"
+            ]
+        ):
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.barh(feature_names, importance_vector, color='steelblue')
+            ax.set_xlabel(xlabel)
+            ax.set_title(f"Feature Importances ({metric_name.upper()})")
+            ax.invert_yaxis()
+            plt.tight_layout()
+            plt.savefig(f"{result_dir}/feature_importance_{metric_name}.png", dpi=150)
+            plt.close(fig)
+
+
+def plot_resampled_distributions(y_train, y_train_inverse_sampled, save_path):
+    # Create directory if needed
+    if save_path is not None:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+    # Define zoomed-in regions
+    regions = [(40, 80), (80, 110), (110, 1500)]
+    region_titles = ["Low Range (40–80) GeV", "Mid Range (80–110) GeV", "High Range (110–1500) GeV"]
+
+    # Set up compact layout
+    fig, axes = plt.subplots(1, 3, figsize=(12, 3))
+
+    logger.info(len(y_train))
+    logger.info(len(y_train_inverse_sampled))
+    for ax, (low, high), title in zip(axes, regions, region_titles):
+        ax.hist(
+            y_train, bins=50, range=(low, high), alpha=0.6, label='Original', 
+            color='steelblue', density=True
+        )
+        ax.hist(
+            y_train_inverse_sampled, bins=50, range=(low, high), alpha=0.6, label='Resampled', 
+            color='darkorange', density=True
+        )
+        ax.set_title(title, fontsize=12)
+        ax.set_xlabel('Target Value')
+        ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+
+    axes[0].set_ylabel('Density')
+    axes[1].legend(loc='upper right', fontsize=10)
+    
+    plt.savefig(save_path, dpi=300)
+
+
+def plot_kde_and_inverse_weights(
+    y_train,
+    density,
+    inv_density,
+    save_path=None,
+    xlim=(60, 120)
+):
+    """
+    Plot the KDE density and inverse sampling weights against the target values.
+
+    Args:
+        y_train (np.ndarray): The original target values.
+        density (np.ndarray): KDE density values for each y_train.
+        inv_density (np.ndarray): Inverse density values (weights).
+        save_path (str or None): Path to save the plot. If None, just shows.
+        xlim (tuple): X-axis limits (min, max) for the plot.
+    """
+    # Sort for smooth curves
+    sorted_idx = np.argsort(y_train)
+    y_sorted = y_train[sorted_idx]
+    density_sorted = density[sorted_idx]
+    inv_density_sorted = inv_density[sorted_idx]
+
+    # Set up figure
+    fig, ax1 = plt.subplots(figsize=(8, 4))
+
+    # Histogram of y_train
+    ax1.hist(y_train, bins=1000, density=True, alpha=0.4, label='Histogram of y_train')
+    ax1.plot(y_sorted, density_sorted, color='blue', label='KDE (Density Estimate)', linewidth=2)
+
+    # Inverse density on secondary axis
+    ax2 = ax1.twinx()
+    ax2.plot(y_sorted, inv_density_sorted, color='red', label='Inverse Density (Sampling Weight)', linewidth=2, linestyle='--')
+
+    # Labels
+    ax1.set_xlabel('Target Value (MZ_TRUTH)', fontsize=12)
+    ax1.set_ylabel('Density', color='blue', fontsize=12)
+    ax2.set_ylabel('Inverse Density Weight', color='red', fontsize=12)
+    ax1.tick_params(axis='y', labelcolor='blue')
+    ax2.tick_params(axis='y', labelcolor='red')
+
+    # Titles and legends
+    plt.title("KDE of y_train and Inverse Sampling Weights", fontsize=14)
+    fig.legend(loc='upper right', bbox_to_anchor=(0.88, 0.88))
+    plt.xlim(xlim)
+    plt.grid(True)
+    
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+

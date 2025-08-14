@@ -19,54 +19,7 @@ from src.data.DataHelpers import read_h5_data, load_multiple_h5, flat_inputs, ad
 from src.utils.Plotting import plot_particle_distributions
 from src.utils.PrettyPrinting import prettify_feature_names
 
-class MetadataIndex(Enum):
-    # EVENT_NUMBER = 0 No need to assing this a n
-    OMEGA = 1
-    MZ_RECO = 2
-    MZ_TRUTH = 3
-    MMC_MZ = 4
-    OPENING_ANGLE = 5
-    LEP_MET_ANGLE_SIGNED = 6
-    IS_MET_INSIDE = 7
-
-particle_feature_dict = {
-    'energy': 0,
-    'eta': 1,
-    'phi': 2,
-    'pt': 3,
-    'btag': 4,
-    'charge': 5,
-    'type': 6
-}
-
-extra_feature_dict = {
-    'omega': MetadataIndex.OMEGA.value, 
-    'mz_reco': MetadataIndex.MZ_RECO.value, 
-    'mz_mmc': MetadataIndex.MMC_MZ.value, 
-    'opening_angle': MetadataIndex.OPENING_ANGLE.value, 
-    'lep_met_angle_signed': MetadataIndex.LEP_MET_ANGLE_SIGNED.value, 
-    'is_met_inside': MetadataIndex.IS_MET_INSIDE.value, 
-}
-
-pretty_label_dict = {
-    'energy': r"$E$",
-    'eta': r"$\eta$",
-    'pt': r"$p_{T}$",
-    'phi': r"$\phi$",
-    'btag': r"btag", 
-    'charge': r"charge",
-    'type': r"type",
-    'phi__cos': r"$\cos(\phi)$",
-    'phi__sin': r"$\sin(\phi)$",
-}
-    
-extra_feature_label_dict = {
-    'opening_angle':         r"$\Delta \phi_U(lep, tau)$",
-    'lep_met_angle_signed': r"$\Delta \phi_S(lep, MET)$",
-    'omega': r"$\Omega$", 
-    'mz_reco': r"Mz-reco",
-    'mz_mmc': r"Mz-mmc",    
-}
+from src.data.DataFormat import MetadataIndex, particle_feature_dict, extra_feature_dict, pretty_label_dict, extra_feature_label_dict
 
 
 class VBFDNNRegressionDataModule(L.LightningDataModule):
@@ -134,14 +87,15 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
         X_val, X_test, y_val, y_test, _, idx_test = train_test_split( X_temp, y_temp, idx_temp, test_size=0.5, shuffle=True, random_state=0 )
     
         # === Peak filtering and quantiles === #
-        peak_indices = (y_train > self.PEAK_RANGE[0]) & (y_train < self.PEAK_RANGE[1])
+        left_tail_ind = (y_train < self.PEAK_RANGE[0])
+        right_tail_ind = (y_train > self.PEAK_RANGE[1])
         self.quantiles = np.quantile(y_train, np.linspace(0, 1, self.num_quantiles + 1))
     
         # === Human benchmark targets === #
         self.M_reco_human = metadata[:, MetadataIndex.MZ_RECO.value][idx_test]
         self.M_mmc_human  = metadata[:, MetadataIndex.MMC_MZ.value][idx_test]
     
-        self.__plot_distributions(X_train, peak_indices, stage="Raw_Data", scaled=False) # Plot data before scaling
+        self.__plot_distributions(left_tail_ind, right_tail_ind, X_train, stage="Raw_Data", scaled=False) # Plot data before scaling
     
         all_feature_indices = get_full_feature_index_ranges(self.particle_feature_names, self.extra_feature_names, self.n_particles)
         scaler = create_custom_scaler(all_feature_indices, self.scaling_dict, self.extra_scaling_dict)
@@ -152,7 +106,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
     
         self.pretty_feature_names = prettify_feature_names(scaler.get_feature_names_out(), pretty_label_dict, extra_feature_label_dict, self.n_particles)
     
-        self.__plot_distributions(X_train, peak_indices, stage="Scaled_Data", scaled=True) # Plot data after scaling
+        self.__plot_distributions(left_tail_ind, right_tail_ind, X_train, stage="Scaled_Data", scaled=True) # Plot data after scaling
     
         # === Convert to tensors and dataset objects === #
         self.train_dataset = TensorDataset(self.__to_tensor(X_train), torch.tensor(y_train, dtype=torch.float32))
@@ -195,7 +149,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
     def __to_tensor(self, X, NAN_PAD_VALUE=-1):
         return torch.nan_to_num(torch.tensor(X, dtype=torch.float32), nan=NAN_PAD_VALUE)
 
-    def __plot_distributions(self, X, peak_mask, stage="Raw_Data", scaled=False):
+    def __plot_distributions(self, left_tail_ind, right_tail_ind, X, stage="Raw_Data", scaled=False):
         folder = self.result_dir + stage
         num_extra = len(self.extra_feature_names)
     
@@ -205,7 +159,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
                 start = idx * self.n_particles
                 end = start + self.n_particles
                 plot_particle_distributions(
-                    peak_mask,
+                    left_tail_ind, right_tail_ind,
                     X[:, start:end],
                     title=self.particle_feature_names[idx],
                     n_bins=40,
@@ -216,7 +170,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
             last_index = len(self.features) * self.n_particles
             for idx, name in enumerate(self.extra_feature_names):
                 plot_particle_distributions(
-                    peak_mask,
+                    left_tail_ind, right_tail_ind,
                     X[:, last_index + idx : last_index + idx + 1],
                     title=name,
                     n_bins=40,
@@ -230,7 +184,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
                 data_bundle = X[:, start_idx:end_idx]
                 title_bundle = self.pretty_feature_names[start_idx:end_idx]
                 plot_particle_distributions(
-                    peak_mask,
+                    left_tail_ind, right_tail_ind,
                     data_bundle,
                     title=f"Features {start_idx} to {end_idx - 1}",
                     titles=title_bundle,
@@ -242,7 +196,7 @@ class VBFDNNRegressionDataModule(L.LightningDataModule):
             for i in range(len(self.pretty_feature_names) - num_extra, len(self.pretty_feature_names)):
                 data_extra = X[:, i].reshape(-1, 1)
                 plot_particle_distributions(
-                    peak_mask,
+                    left_tail_ind, right_tail_ind,
                     data_extra,
                     title=self.pretty_feature_names[i],
                     n_bins=40,

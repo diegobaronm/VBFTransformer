@@ -114,6 +114,35 @@ class QuantileAwareLoss(nn.Module):
         total_loss = self.alpha * base_loss_value + (1 - self.alpha) * quantile_loss_value
         return total_loss
 
+class CauchyLoss(nn.Module):
+    def __init__(self, c=5.0, reduction='mean'):
+        """
+        Cauchy loss function: log(1 + (diff/c)^2)
+        
+        Args:
+            c (float): Scale parameter controlling outlier sensitivity.
+                       Smaller c = more sensitive to errors (use near peak).
+                       Larger c = more outlier robustness.
+            reduction (str): 'mean', 'sum', or 'none'
+        """
+        super().__init__()
+        self.c = c
+        self.reduction = reduction
+
+    def forward(self, input, target):
+        diff = input - target
+        loss = torch.log1p((diff / self.c)**2)  # log1p for numerical stability
+        
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        elif self.reduction == 'none':
+            return loss
+        else:
+            raise ValueError(f"Invalid reduction mode: {self.reduction}")
+
+            
 class InverseGaussianWeightedLoss(nn.Module):
     def __init__(self, base_loss=nn.SmoothL1Loss(beta=10, reduction='mean'), center=91.0, sigma=5.0, max_weight=10.0):
         super().__init__()
@@ -148,4 +177,5 @@ loss_function_dictionary.update({
     'WeightedTailLoss': WeightedTailLoss,
     'QuantileAwareLoss': QuantileAwareLoss,
     'InverseGaussianWeightedLoss': InverseGaussianWeightedLoss,
+    'CauchyLoss' : CauchyLoss,
 })

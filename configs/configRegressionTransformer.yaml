@@ -18,10 +18,10 @@ dataset:
   target_scaling: standardscaler
   
   train:
-    batch_size: 512
+    batch_size: 2048
     num_workers: 10
   val:
-    batch_size: 256
+    batch_size: 1024
     num_workers: 10
 model:
   num_heads: 4
@@ -29,9 +29,10 @@ model:
   
   extra_features: []
   features: [energy, eta, phi, pt]
-  layers: [128, 128]
+  input_embedder_NN_layers: [32, 64]
   n_particles: 3
-  name: TransformerTest
+  output_activation: linear
+  name: TransformRegressionTest
   type: TransformerRegression
 
 train:

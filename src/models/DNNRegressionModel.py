@@ -19,7 +19,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # === Local utility imports ===
 sys.path.append(os.path.abspath("src/utils"))
-from Plotting import plot_metrics, permutation_feature_importance, compute_feature_importance_and_correlation_plot
+from Plotting import plot_metrics, compute_feature_importance_and_correlation_plot
 from LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
 
 class SimpleDNN(nn.Module):
@@ -162,7 +162,7 @@ class VBFDNNRegression(L.LightningModule):
 
         compute_feature_importance_and_correlation_plot(
             model=self.model, datamodule=self.trainer.datamodule, device=self.device,
-            result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer
+            result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer, transformer=False
         )
         
         # Reset metrics

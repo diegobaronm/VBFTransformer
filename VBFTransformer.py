@@ -24,6 +24,7 @@ from src.models.TransformerModel import VBFTransformer
 from src.models.DNNModel import VBFDNN
 from src.models.DNNRegressionModel import VBFDNNRegression
 from src.models.TransformerRegression import VBFTransformerRegression
+from src.models.ModelArchitectures import ExtraFeatureTransformer
 
 # Model and datamodule dictionaries
 g_datamodule_dict = {

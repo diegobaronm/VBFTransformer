@@ -29,14 +29,53 @@ jobs:
       run: |
         pip install -e .
 
-    - name: Run training
+    - name: Run DNN training
       run: |
         python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=train
 
-    - name: Run prediction
+    - name: Run DNN prediction
       run: |
         python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=predict
 
-    - name: Run performance
+    - name: Run DNN performance
       run: |
         python VBFTransformer.py --config-dir tests/configs --config-name test_config general.mode=performance
+
+    - name: Run Transformer training
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformer general.mode=train
+
+    - name: Run Transformer prediction
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformer general.mode=predict
+
+    - name: Run Transformer performance
+      run: |
+        rm results/* # Clear previous results to avoid interactive input request.
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformer general.mode=performance
+
+    - name: Run DNNReg training
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=train
+
+    - name: Run DNNReg prediction
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=predict
+
+    - name: Run DNNReg performance
+      run: |
+        rm results/* # Clear previous results to avoid interactive input request.
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=performance
+
+    - name: Run TransformerReg training
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=train
+
+    - name: Run DNNReg prediction
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=predict
+
+    - name: Run DNNReg performance
+      run: |
+        rm results/* # Clear previous results to avoid interactive input request.
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=performance

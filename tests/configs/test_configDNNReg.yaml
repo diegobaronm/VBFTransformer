@@ -1,0 +1,57 @@
+dataset:
+  input_files:
+  - tests/configs/test_config_DNN_regression.yaml
+  scaling_dict:
+    energy: logminmax
+    eta: standardscaler
+    pt: logminmax
+  extra_scaling_dict:
+    lep_met_angle_signed: standardscaler
+    opening_angle: minmax
+    mz_reco: logminmax
+  target_scaling: none
+    
+  
+  train:
+    num_workers: 10
+    batch_size: 2048
+  val:
+    num_workers: 10
+    batch_size: 1024
+
+  inverse_sampling: False
+  KDE_width: 2
+  Min_Dens_cap: 30
+
+  
+model:
+  layers: [128, 128]
+  n_particles: 5
+  name: DNNRegression_Test
+  type: DNNRegression
+  
+train:
+  dropout_probability: 0.0
+  early_stopping_patience: 10
+  learning_rate: 0.00015
+  loss_fn: SmoothL1Loss
+  loss_fn_params:
+    beta: 3.5
+    reduction: mean
+  lr_scheduler_patience: 6
+  n_epochs: 500
+  num_quantiles: 10
+  weight_decay: 0.0
+  save_weights: True
+  plot_model_results: True
+  
+performance:
+  model_ckpt_path: lightning_logs/version_2/checkpoints/
+predict:
+  model_ckpt_path: lightning_logs/version_2/checkpoints/
+  output_file: predictions.csv
+general:
+  device: cpu
+  mode: train
+  runner: federico
+  

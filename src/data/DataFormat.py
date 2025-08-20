@@ -57,7 +57,7 @@ pretty_label_dict = {
 }
     
 extra_feature_label_dict = {
-    'opening_angle':         r"$\Delta \phi_U(lep, tau)$",
+    'opening_angle': r"$\Delta \phi_U(lep, tau)$",
     'lep_met_angle_signed': r"$\Delta \phi_S(lep, MET)$",
     'omega': r"$\Omega$", 
     'mz_reco': r"Mz-reco",

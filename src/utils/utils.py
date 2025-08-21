@@ -67,6 +67,38 @@ def get_latest_checkpoint_path(checkpoint_dir):
     
     return os.path.join(checkpoint_dir, checkpoints[0])
 
+
+def load_checkpoint_into_model(model, ckpt_path, save_fixed=True):
+    """
+    Load checkpoint into model while fixing a leading 'model.' prefix.
+    """
+    checkpoint = torch.load(ckpt_path, map_location="cpu")
+    state_dict = checkpoint.get("state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
+
+    model_keys = set(model.state_dict().keys())
+    ckpt_keys = set(state_dict.keys())
+
+    # Fix 'model.' prefix if needed
+    if model_keys == ckpt_keys:
+        new_state_dict = state_dict
+    elif any(k.startswith("model.") for k in model_keys) and not any(k.startswith("model.") for k in ckpt_keys):
+        new_state_dict = {"model." + k: v for k, v in state_dict.items()}
+    elif any(k.startswith("model.") for k in ckpt_keys) and not any(k.startswith("model.") for k in model_keys):
+        new_state_dict = {k.replace("model.", "", 1): v for k, v in state_dict.items()}
+    else:
+        new_state_dict = state_dict
+        # We let the code run which will likely crash as lightining throws an error explaining which keys don't match
+
+    # Optionally save fixed checkpoint
+    if save_fixed:
+        ckpt_copy = checkpoint.copy() if isinstance(checkpoint, dict) else {"state_dict": new_state_dict}
+        ckpt_copy["state_dict"] = new_state_dict
+        torch.save(ckpt_copy, ckpt_path + ".fixed")
+
+    # Load strictly
+    model.load_state_dict(new_state_dict, strict=True)
+    return model
+    
 # Check if a result already exists, given a path, if so, ask the user if they want to overwrite it.
 # If not, generate a timestamped version of the path.
 def check_and_overwrite_result_path(result_path):

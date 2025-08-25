@@ -38,7 +38,7 @@ def train(datamodule, model, cfg: DictConfig):
     # Without specifying the callback, the model will stil produce checkpoints (.ckpt files) in the lightning_logs dir
     trainer = L.Trainer(
         max_epochs=cfg.train.n_epochs,
-        accelerator="gpu",            # Use GPU
+        accelerator=device,            # Use GPU
         devices="auto",               # Automatically use all available GPUs
         callbacks=callbacks,
     )

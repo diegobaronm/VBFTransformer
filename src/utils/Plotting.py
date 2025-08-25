@@ -211,7 +211,13 @@ def _create_log_histogram(ax, y_true, y_pred, cmap, fig, style):
     
     # Compute log-scale bounds and allow for extra room for neater visuals
     low, high = _calculate_min_max_data(y_pred, y_true, rounding=False)
+    eps = 1e-9
+
+    # Safeguarding when training low epochs causing model to predict -inf for some masses.
+    if low <= 0:
+        low = eps
     low = np.log(0.95 * low)
+
     high = np.log(1.05 * high)
     
     hist = ax.hist2d(np.log(y_true), np.log(y_pred), bins=100, range=[[low, high], [low, high]], cmap=cmap, norm=colors.LogNorm(vmin=1))

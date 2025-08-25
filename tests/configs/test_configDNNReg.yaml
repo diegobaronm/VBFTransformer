@@ -11,13 +11,13 @@ dataset:
     mz_reco: logminmax
   target_scaling: none
     
-  
   train:
     num_workers: 10
-    batch_size: 2048
+    batch_size: 1024
   val:
     num_workers: 10
-    batch_size: 1024
+    batch_size: 512
+
 
   inverse_sampling: False
   KDE_width: 2

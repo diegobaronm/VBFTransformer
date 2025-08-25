@@ -216,8 +216,8 @@ def _create_log_histogram(ax, y_true, y_pred, cmap, fig, style):
     # Safeguarding when training low epochs causing model to predict -inf for some masses.
     if low <= 0:
         low = eps
-    low = np.log(0.95 * low)
 
+    low = np.log(0.95 * low)
     high = np.log(1.05 * high)
     
     hist = ax.hist2d(np.log(y_true), np.log(y_pred), bins=100, range=[[low, high], [low, high]], cmap=cmap, norm=colors.LogNorm(vmin=1))

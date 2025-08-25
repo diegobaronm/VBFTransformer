@@ -16,11 +16,11 @@ dataset:
   target_scaling: standardscaler
   
   train:
-    batch_size: 8192
-    num_workers: 15
+    num_workers: 10
+    batch_size: 1024
   val:
-    batch_size: 4096
-    num_workers: 15
+    num_workers: 10
+    batch_size: 512
 
   inverse_sampling: False
   KDE_width: 1
@@ -33,7 +33,7 @@ model:
   input_embedder_NN_layers: [64, 128]
   n_particles: 5
   output_activation: linear
-  name: mz_mmc_VBF
+  name: transformerRegressionTest
   type: TransformerRegression
   pooling_type: mean
   norm_type: none

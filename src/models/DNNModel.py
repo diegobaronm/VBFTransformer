@@ -74,8 +74,13 @@ class VBFDNN(L.LightningModule):
         # Results
         self.result_dir = 'results/'
 
-    def setup(self, stage): # This is always called after the data module is setup.
-        self.feature_names = self.trainer.datamodule.feature_names
+    def setup(self, stage, datamodule=None): # This is always called after the data module is setup.
+        if datamodule is None:
+            dm = self.trainer.datamodule
+        else:
+            dm = datamodule
+
+        self.feature_names = dm.feature_names
         i = 0
         for name in self.feature_names:
             # Initialize a metric for each feature importance

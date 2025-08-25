@@ -1,6 +1,6 @@
 dataset:
   input_files:
-  - tests/configs/test_config_DNN_regression.yaml
+  - tests/data/vbf_regression_test.h5
   scaling_dict:
     energy: logminmax
     eta: standardscaler
@@ -48,7 +48,7 @@ train:
     beta: 2.0
     
   lr_scheduler_patience: 5
-  n_epochs: 1000
+  n_epochs: 3
   num_quantiles: 10
   weight_decay: 1e-3
   optimize: False

@@ -156,7 +156,7 @@ class VBFTransformerRegression(L.LightningModule):
             preds_cpu = preds_cpu.reshape(-1, 1)
         
         return {"labels": torch.from_numpy(target_scaler.inverse_transform(y_cpu.numpy())),
-                "predictions": torch.from_numpy(target_scaler.inverse_transform(preds_cpu.numpy()))}
+                "predictions": torch.from_numpy(target_scaler.inverse_transform(preds_cpu.numpy())),
                 "attentions": attn_weights}
     
     def test_step(self, batch, batch_idx):

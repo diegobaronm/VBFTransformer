@@ -24,7 +24,6 @@ from src.models.TransformerModel import VBFTransformer
 from src.models.DNNModel import VBFDNN
 from src.models.DNNRegressionModel import VBFDNNRegression
 from src.models.TransformerRegression import VBFTransformerRegression
-from src.models.ModelArchitectures import ExtraFeatureTransformer
 
 # Model and datamodule dictionaries
 g_datamodule_dict = {
@@ -42,7 +41,7 @@ g_model_dict = {
 }
 
 # Entry point for the application
-@hydra.main(version_base=None, config_path="", config_name="config")
+@hydra.main(version_base=None, config_path="configs", config_name="config")
 def main(cfg: DictConfig):
     try: 
         # Print the job configuration
@@ -50,11 +49,9 @@ def main(cfg: DictConfig):
         logger.info("Configuration:")
         print(syntax)
 
-        cfg = cfg.BatchConfigs
-
-        
-        if cfg.model.type not in ['DNN', 'Transformer', 'DNNRegression', 'TransformerRegression']:
-            logger.error("Invalid model type specified in the configuration. Please choose either 'DNN', 'Transformer', 'DNNRegression' or 'TransformerRegression'.")
+        model_names = ['DNN', 'Transformer', 'DNNRegression', 'TransformerRegression']
+        if cfg.model.type not in model_names:
+            logger.error(f"Invalid model type specified in the configuration. Please choose a model in {model_names}.")
             raise ValueError()
         
         model = g_model_dict[cfg.model.type] # This is configured inside each step of the pipeline, so just passing the type here.
@@ -64,11 +61,12 @@ def main(cfg: DictConfig):
         if cfg.general.mode == 'train':
             train(datamodule, model, cfg)
 
-        if cfg.general.mode == 'predict':
+        elif cfg.general.mode == 'predict':
             predict(datamodule, model, cfg)
 
-        if cfg.general.mode == 'performance':
+        elif cfg.general.mode == 'performance':
             testing(datamodule, model, cfg)
+        
 
     except ConfigAttributeError:
         logger.error("Configuration error: Please check your configuration file. Possibly a missing attribute is needed.")

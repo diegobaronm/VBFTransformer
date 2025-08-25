@@ -108,7 +108,22 @@ class VBFDNNRegression(L.LightningModule):
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         x, y = batch
-        return {"labels" : y, "predictions" : self.model(x)}
+        preds = self.model(x)
+
+        target_scaler = self.trainer.datamodule.target_scaler
+
+        # Move to CPU and reshape for sklearn
+        y_cpu = y.cpu()
+        preds_cpu = preds.cpu()
+        
+        # Ensure 2D shape for sklearn scaler
+        if y_cpu.ndim == 1:
+            y_cpu = y_cpu.reshape(-1, 1)
+        if preds_cpu.ndim == 1:
+            preds_cpu = preds_cpu.reshape(-1, 1)
+
+        return {"labels": torch.from_numpy(target_scaler.inverse_transform(y_cpu.numpy())),
+                "predictions": torch.from_numpy(target_scaler.inverse_transform(preds_cpu.numpy()))}
     
     def test_step(self, batch, batch_idx):
         x, y = batch

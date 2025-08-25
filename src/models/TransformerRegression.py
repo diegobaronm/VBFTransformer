@@ -155,11 +155,9 @@ class VBFTransformerRegression(L.LightningModule):
         if preds_cpu.ndim == 1:
             preds_cpu = preds_cpu.reshape(-1, 1)
         
-        return { 
-            "labels": target_scaler.inverse_transform(y_cpu),  
-            "predictions": target_scaler.inverse_transform(preds_cpu), 
-            "attentions": attn_weights
-        }
+        return {"labels": torch.from_numpy(target_scaler.inverse_transform(y_cpu.numpy())),
+                "predictions": torch.from_numpy(target_scaler.inverse_transform(preds_cpu.numpy()))}
+                "attentions": attn_weights}
     
     def test_step(self, batch, batch_idx):
         if self.trainer.datamodule.compute_pairing_tokens:

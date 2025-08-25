@@ -71,11 +71,11 @@ jobs:
       run: |
         python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=train
 
-    - name: Run DNNReg prediction
+    - name: Run TransformerReg prediction
       run: |
         python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=predict
 
-    - name: Run DNNReg performance
+    - name: Run TransformerReg performance
       run: |
         rm -rf results/* # Clear previous results and subdirectories to avoid interactive input request.
         python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=performance

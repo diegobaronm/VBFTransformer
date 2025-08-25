@@ -26,16 +26,9 @@ Example config files can be found in the `tests` folder.
   - `batch_size`: Number of events per batch  
   - `num_workers`: Number of CPU workers used for data loading
 
-- **For Transformer only:**  
-  - `inverse_sampling`: If `True`, samples batches unevenly to prioritize rare events by building a KDE with specified parameters and using its inverse distribution.  
-  - `KDE_width`: Width parameter for KDE.  
-  - `Min_Dens_cap`: Caps minimum density to prevent excessively large sampling weights for ultra-rare events.
-
-```yaml
-inverse_sampling: True
-KDE_width: 2
-Min_Dens_cap: 10
-```
+- **`inverse_sampling`**: If `True`, samples batches unevenly to prioritize rare events by building a KDE with specified parameters and using its inverse distribution.  
+- **`KDE_width`**: Width parameter for Gaussian KDE.  
+- **`Min_Dens_cap`**: Caps minimum density to prevent excessively large sampling weights for ultra-rare events.
 
 ---
 
@@ -122,9 +115,6 @@ Available loss functions are listed in [`src/utils/LossFunctions.py`](src/utils/
 - **`weight_decay`**  
   L2 regularization strength. Set to `0` to disable.
 
-- **`save_weights`**  
-  Set to `True` to save the model weights (`weights.pth`) alongside the plots.
-
 - **`optimize`**  
   Enables PyTorch TF32 matmul optimization (trades precision for speed).
 
@@ -139,49 +129,20 @@ Available loss functions are listed in [`src/utils/LossFunctions.py`](src/utils/
   e.g., `cuda` or `cpu`.
 
 - **`mode`**  
-  Model mode: `train`, `eval`, or `predict`.
+  Model mode: `train`, `performance`, or `predict`.
 
 - **`runner`**  
-  Identifier for the runner (e.g., `federico`).
+  Identifier for the runner (e.g., `Bob`).
 
 ---
 
 ## Output & Metrics
 
-- In the model's results folder (named after the model), a `model_metrics.txt` file is saved containing key metrics:
-
-Example output for Transformer:
-
-```
-## === Training Metrics === ##
-Layer 0 - Attention Entropy             : 1.6093
-Layer 0 - Attention Sparsity            : 1.0
-Layer 0 - Head Diversity                : 0.0001
-Layer 1 - Attention Entropy             : 1.2898
-Layer 1 - Attention Sparsity            : 0.8587
-Layer 1 - Head Diversity                : 0.242
-Mean Absolute Error (MAE)               : 7.9856
-Mean Fractional Bias (MFB)              : 0.0019
-Mean Squared Error (MSE)                : 575.2
-Median Absolute Error                   : 2.6198
-Root Mean Squared Log Error (RMSLE)     : 0.1217
-R² Score                                : 0.8064
-
-## === Model Metrics === ##
-Number of Parameters                    : 850,305
-Number of Training Events               : 155,536
-Peak GPU Memory Usage (MB)              : 969.38
-Total Training Time (HH:MM:SS)          : 0:03:14
-Training Batch Size                     : 4096
-Validation Batch Size                   : 2048
-```
-
-- Metrics are also saved in YAML format to facilitate comparing models using code.
+- Statistical such as: MeanAbsoluteError, MeanSquaredError, R2Score, MeanFractionalBias, MedianAbsoluteError and RootMeanSquaredLogError are calculated for the DNN and the Transformer.
+- Extra attention-specific metrics are computed for the Transformer: AttentionEntropy, AttentionSparsity, HeadDiversity
 
 - Feature importance plots and performance-related plots are generated and saved in the model directory.
 
 - When KDE sampling is enabled, plots comparing original vs. new sampling distributions are included.
-
-- **Note:** When saving weights, the latest model state is saved rather than the one with the lowest validation loss.
-
+- 
 ---

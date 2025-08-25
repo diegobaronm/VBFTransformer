@@ -1,7 +1,4 @@
 dataset:
-  extra_scaling_dict:
-    lep_met_angle_signed: standardscaler
-    opening_angle: minmax
   input_files:
   - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20a_fullsim.h5
   - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20d_fullsim.h5
@@ -9,44 +6,40 @@ dataset:
   - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20a_fullsim.h5
   - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20d_fullsim.h5
   - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20e_fullsim.h5
-  persistent_workers: true
+  
   scaling_dict:
     energy: logminmax
     eta: standardscaler
     pt: logminmax
+  extra_scaling_dict:
+    lep_met_angle_signed: standardscaler
+    opening_angle: minmax
+    mz_reco: logminmax
+  target_scaling: none
+    
+  
   train:
-    batch_size: 512
     num_workers: 10
+    batch_size: 2048
   val:
-    batch_size: 256
     num_workers: 10
-general:
-  device: cuda
-  mode: train
-  runner: federico
+    batch_size: 1024
+
+  inverse_sampling: False
+  KDE_width: 2
+  Min_Dens_cap: 30
+
+  
 model:
-  extra_features:
-  - opening_angle
-  - lep_met_angle_signed
-  features:
-  - energy
-  - eta
-  - pt
-  layers:
-  - 128
-  - 128
-  n_particles: 3
-  name: Terry_InverseGauss_5p_base
+  layers: [128, 128]
+  n_particles: 5
+  name: configRegression
   type: DNNRegression
-performance:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
-predict:
-  model_ckpt_path: lightning_logs/version_0/checkpoints/
-  output_file: predictions.csv
+  
 train:
-  dropout_probability: 0.1
+  dropout_probability: 0.0
   early_stopping_patience: 10
-  learning_rate: 0.0003
+  learning_rate: 0.00015
   loss_fn: InverseGaussianWeightedLoss
   loss_fn_params:
     base_loss: SmoothL1Loss
@@ -57,6 +50,16 @@ train:
     max_weight: 2.5
     sigma: 1.5
   lr_scheduler_patience: 6
-  n_epochs: 400
+  n_epochs: 500
   num_quantiles: 10
-  weight_decay: 1.0e-05
+  weight_decay: 0.0
+  
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+predict:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  output_file: predictions.csv
+general:
+  device: cuda
+  mode: performance
+  runner: federico

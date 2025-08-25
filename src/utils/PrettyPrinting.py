@@ -1,3 +1,5 @@
+# This is a file in which functions to enhance the plotting and printing capabilities will be put
+# These functions mainly use regex mactching to trim variable names outputted from the scalers
 import re
 
 def prettify_feature_names(raw_feature_names, pretty_label_dict, extra_feature_label_dict, num_particles):

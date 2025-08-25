@@ -41,13 +41,15 @@ g_model_dict = {
 }
 
 # Entry point for the application
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="", config_name="config")
 def main(cfg: DictConfig):
     try: 
         # Print the job configuration
         syntax = Syntax(OmegaConf.to_yaml(cfg), "yaml", theme="monokai", line_numbers=False)
         logger.info("Configuration:")
         print(syntax)
+
+        cfg = cfg.BatchConfigs
 
         model_names = ['DNN', 'Transformer', 'DNNRegression', 'TransformerRegression']
         if cfg.model.type not in model_names:

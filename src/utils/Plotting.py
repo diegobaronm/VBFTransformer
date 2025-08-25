@@ -30,13 +30,17 @@ DEFAULT_STYLE = {
 
 def plot_particle_distributions(left_tail_ind, right_tail_ind, signal_data, x_range=None, title='', titles=None, n_bins=40, no_particle_name=False, folder_name=''):
     """Plots input training data and separates it into left, peak and right tail to visually discriminate variables"""
-    
-    # Ensure inputs are all 2D even when only data from 1 particle is input
-    signal_data = np.atleast_2d(signal_data)
-    n_particles = signal_data.shape[1]
+    if signal_data.ndim == 1:
+        # single feature (1D input)
+        signal_data = signal_data[:, None]   # shape (n_events, 1)
+        n_particles = 1
+    else:
+        # already 2D
+        signal_data = np.atleast_2d(signal_data)
+        n_particles = signal_data.shape[1]
 
     # If we have many particles, then their names will be lep, tau, met, jet1, jet2 etc. 
-    base_names = ['lep', 'tau', 'MET'] + [f'jet{i+1}' for i in range(n_particles - len(base_names))]
+    base_names = ['lep', 'tau', 'MET'] + [f'jet{i+1}' for i in range(n_particles - 3)]
 
     # we also need to ensure not to include tau or met if only 1 or 2 particles used
     particle_names = [''] if no_particle_name else base_names[:n_particles]
@@ -48,7 +52,7 @@ def plot_particle_distributions(left_tail_ind, right_tail_ind, signal_data, x_ra
         data = signal_data[:, i]
         valid = ~np.isnan(data) & ~np.isinf(data)
         clean = data[valid]
-
+        
         num_nans, num_infs = np.isnan(data).sum(), np.isinf(data).sum()
         l_mask, r_mask = left_tail_ind[valid], right_tail_ind[valid]
         p_mask = ~(l_mask | r_mask)
@@ -207,8 +211,8 @@ def _create_log_histogram(ax, y_true, y_pred, cmap, fig, style):
     
     # Compute log-scale bounds and allow for extra room for neater visuals
     low, high = _calculate_min_max_data(y_pred, y_true, rounding=False)
-    low *= 0.95
-    high *= 1.05
+    low = np.log(0.95 * low)
+    high = np.log(1.05 * high)
     
     hist = ax.hist2d(np.log(y_true), np.log(y_pred), bins=100, range=[[low, high], [low, high]], cmap=cmap, norm=colors.LogNorm(vmin=1))
     

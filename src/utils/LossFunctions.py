@@ -114,16 +114,11 @@ class QuantileAwareLoss(nn.Module):
         total_loss = self.alpha * base_loss_value + (1 - self.alpha) * quantile_loss_value
         return total_loss
 
+
 class CauchyLoss(nn.Module):
     def __init__(self, c=5.0, reduction='mean'):
         """
         Cauchy loss function: log(1 + (diff/c)^2)
-        
-        Args:
-            c (float): Scale parameter controlling outlier sensitivity.
-                       Smaller c = more sensitive to errors (use near peak).
-                       Larger c = more outlier robustness.
-            reduction (str): 'mean', 'sum', or 'none'
         """
         super().__init__()
         self.c = c

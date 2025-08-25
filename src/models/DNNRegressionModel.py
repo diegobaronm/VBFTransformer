@@ -7,8 +7,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 # === External libraries ===
 from omegaconf import DictConfig
@@ -18,30 +16,14 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError, R2Score
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # === Local utility imports ===
-sys.path.append(os.path.abspath("src/utils"))
-from Plotting import plot_metrics, compute_feature_importance_and_correlation_plot
-from LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
+from src.utils.Plotting import plot_metrics, compute_feature_importance_and_correlation_plot
+from src.utils.LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
 
-class SimpleDNN(nn.Module):
-    def __init__(self, n_inputs, hidden_layers, dropout_prob=0.1):
-        super(SimpleDNN, self).__init__()
+import torchmetrics
+from torchmetrics.regression import MeanSquaredLogError
+from src.models.ModelMetrics import MeanFractionalBias, MedianAbsoluteError, RootMeanSquaredLogError
 
-        # Complete layer sizes: [n_inputs, hidden1, hidden2, ..., 1]
-        layer_sizes = [n_inputs] + hidden_layers + [1]
-
-        # Create a list of Linear layers
-        self.layers = nn.ModuleList([
-            nn.Linear(in_size, out_size)
-            for in_size, out_size in zip(layer_sizes[:-1], layer_sizes[1:])
-        ])
-
-        self.dropout = nn.Dropout(p=dropout_prob)
-
-    def forward(self, x):
-        for layer in self.layers[:-1]:
-            x = self.dropout(F.relu(layer(x)))
-        y = F.softplus(self.layers[-1](x))
-        return y
+from src.models.ModelArchitectures import SimpleDNN
 
 class VBFDNNRegression(L.LightningModule):
     def __init__(self, config_object : DictConfig):
@@ -49,9 +31,6 @@ class VBFDNNRegression(L.LightningModule):
 
         self.dropout_prob = config_object.train.dropout_probability
         self.NN_layers = config_object.model.layers
-        
-        num_node_inputs = config_object.model.n_particles * len(config_object.model.features) + len(config_object.model.extra_features)
-        logger.info(f"Number of node inputs in the model {num_node_inputs}")
     
         self.learning_rate = config_object.train.learning_rate
         self.weight_decay = config_object.train.weight_decay
@@ -68,24 +47,37 @@ class VBFDNNRegression(L.LightningModule):
         self.train_losses = []
         self.val_losses = []
    
-
         # Metrics
-        self.test_mae = MeanAbsoluteError()
-        self.test_mse = MeanSquaredError()
-        self.test_r2 = R2Score()
+        self.train_losses, self.val_losses = [], []
+        self.mae = torchmetrics.MeanAbsoluteError()
+        self.mse = torchmetrics.MeanSquaredError()
+        self.r2 = torchmetrics.R2Score()
+        self.mfb = MeanFractionalBias()
+        self.median_ae = MedianAbsoluteError()
+        self.rmsle = RootMeanSquaredLogError()
 
         # Results
         self.result_dir = 'results/' + config_object.model.name + '/'
+        self._has_setup = False
 
     # This is always called after the data module is setup
-    def setup(self, stage=None):
-        dm = self.trainer.datamodule
+    def setup(self, stage=None, datamodule=None):
+        if self._has_setup:
+            return
+        self._has_setup = True
+
+        if datamodule is None:
+            dm = self.trainer.datamodule
+        else:
+            dm = datamodule
+        
         input_dim = dm.train_dataset.tensors[0].shape[1]
         
-        self.model = SimpleDNN(input_dim, self.NN_layers, self.dropout_prob)
+        self.model = SimpleDNN(input_dim, self.NN_layers, self.dropout_prob, output_activation='softplus')
 
         # Loss function set up now as it can depend on the quantiles, hence on the training data
         self.loss_fn = build_loss_function(self.loss_name, self.loss_params, dm.quantiles) 
+            
         logger.info(f"Model input dimension: {input_dim}")
 
     def training_step(self, batch, batch_idx):
@@ -93,11 +85,14 @@ class VBFDNNRegression(L.LightningModule):
         y_hat = self.model(x).squeeze()
         loss = self.loss_fn(y_hat, y)
 
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log('lr', self.optimizers().param_groups[0]['lr'], on_step=True, on_epoch=True, prog_bar=True)
-
-        self.train_losses.append(loss.detach().cpu().item())
+        self.log('train_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('lr', self.optimizers().param_groups[0]['lr'], on_epoch=True, prog_bar=True)
         return loss
+
+    def on_train_epoch_end(self):
+        # Lightning automatically aggregates epoch metrics, so we just grab it
+        epoch_loss = self.trainer.callback_metrics["train_loss"].item()
+        self.train_losses.append(epoch_loss)
     
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -105,8 +100,11 @@ class VBFDNNRegression(L.LightningModule):
         loss = self.loss_fn(y_hat, y)
 
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
-        self.val_losses.append(loss.detach().cpu().item())
         return loss
+
+    def on_validation_epoch_end(self):
+        epoch_loss = self.trainer.callback_metrics["val_loss"].item()
+        self.val_losses.append(epoch_loss)
     
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         x, y = batch
@@ -115,12 +113,10 @@ class VBFDNNRegression(L.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self.model(x).squeeze()
-        self.test_mae.update(y_hat, y)
-        self.test_mse.update(y_hat, y)
-        self.test_r2.update(y_hat, y)
+        for metric in [self.mae, self.mse, self.median_ae, self.mfb, self.rmsle, self.r2]:
+            metric.update(y_hat, y)
 
     def on_test_epoch_end(self):
-
         # Manually run prediction over test set
         loader = self.trainer.datamodule.test_dataloader()
         y_true_list, y_pred_list = [], []
@@ -132,47 +128,31 @@ class VBFDNNRegression(L.LightningModule):
             
         y_true_test = torch.cat(y_true_list).cpu().detach().numpy().squeeze()
         y_pred_test = torch.cat(y_pred_list).cpu().detach().numpy().squeeze()
-
-        train_batch_num = len(self.trainer.datamodule.train_dataloader())
-        val_batch_num = len(self.trainer.datamodule.val_dataloader())
+        
         train_losses_arr = np.array(self.train_losses)
         val_losses_arr = np.array(self.val_losses)
-        num_epochs = int(len(self.train_losses) / train_batch_num)
-        
-        # We can reshape only because we have drop=True on both of them
-        # Calculate number of epochs based on train losses
-        num_epochs_train = len(train_losses_arr) // train_batch_num
-        num_epochs_val = len(val_losses_arr) // val_batch_num
-        
-        # Trim train_losses and val_losses to exact multiples
-        train_losses_arr = train_losses_arr[:num_epochs_train * train_batch_num]
-        val_losses_arr = val_losses_arr[:num_epochs_val * val_batch_num]
-        
-        # Now reshape safely
-        avg_train_loss = train_losses_arr.reshape(num_epochs_train, train_batch_num).mean(axis=1)
-        avg_val_loss = val_losses_arr.reshape(num_epochs_val, val_batch_num).mean(axis=1)
 
         y_true_test_tensor = torch.tensor(y_true_test, dtype=torch.float32, device=self.device)
-        
-        loss_human1 = self.loss_fn(torch.tensor(self.trainer.datamodule.M_reco_human, dtype=torch.float32, device=self.device),y_true_test_tensor).item()
-        loss_human2 = self.loss_fn(torch.tensor(self.trainer.datamodule.M_mmc_human, dtype=torch.float32, device=self.device), y_true_test_tensor).item()
 
-        plot_metrics(avg_train_loss, avg_val_loss, y_true_test, y_pred_test, loss_human1,loss_human2, self.loss_fn, folder_name=self.result_dir)
+        plot_metrics(train_losses_arr, val_losses_arr, y_true_test, y_pred_test, self.loss_fn, folder_name=self.result_dir)
     
-
         compute_feature_importance_and_correlation_plot(
             model=self.model, datamodule=self.trainer.datamodule, device=self.device,
-            result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer, transformer=False
+            result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer
         )
-        
-        # Reset metrics
-        self.test_mae.reset()
-        self.test_mse.reset()
-        self.test_r2.reset()
 
-        # Clear lists for next test
+        self.log('Mean Absolute Error', self.mae.compute())
+        self.log('Mean Squared Error', self.mse.compute())
+        self.log('R-squared coefficient', self.r2.compute())
+        self.log('Mean Fractional Bias', self.mfb.compute())
+        self.log('Meadia_AE', self.median_ae.compute())
+        self.log('Root Mean Squared Log Error', self.rmsle.compute())
+        
         self.train_losses.clear()
         self.val_losses.clear()
+        
+        for metric in [self.mae, self.mse, self.r2, self.mfb, self.median_ae, self.rmsle , self.r2]:
+            metric.reset()
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)

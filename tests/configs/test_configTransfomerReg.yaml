@@ -53,8 +53,6 @@ train:
   weight_decay: 1e-3
   optimize: False
   compute_pairing_tokens: False
-  plot_model_results: True
-  save_weights: True
   
 general:
   device: cpu

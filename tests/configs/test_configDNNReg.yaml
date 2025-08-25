@@ -42,8 +42,6 @@ train:
   n_epochs: 500
   num_quantiles: 10
   weight_decay: 0.0
-  save_weights: True
-  plot_model_results: True
   
 performance:
   model_ckpt_path: lightning_logs/version_2/checkpoints/

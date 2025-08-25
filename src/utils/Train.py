@@ -40,21 +40,8 @@ def train(datamodule, model, cfg: DictConfig):
         max_epochs=cfg.train.n_epochs,
         accelerator="gpu",            # Use GPU
         devices="auto",               # Automatically use all available GPUs
-        strategy="ddp",               # Use Distributed Data Parallel (best for multi-GPU)
         callbacks=callbacks,
     )
 
     # Train the model
     trainer.fit(model=model, datamodule=datamodule)
-
-    if bool(cfg.train.get('plot_model_results', False)):
-
-        # Added these two lines to evaluate the performance each time we train it
-        model.on_test_epoch_end()
-    
-        save_weights = bool(cfg.train.get('save_weights', False))
-        
-        # Save the weights of the model on the last epoch: 
-        if save_weights:
-            logger.info('Saving Model Weights')
-            torch.save(model.state_dict(), 'results/' + cfg.model.name + '/weights.pth')

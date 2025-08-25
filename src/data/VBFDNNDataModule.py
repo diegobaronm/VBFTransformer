@@ -46,7 +46,7 @@ class VBFDNNDataModule(L.LightningDataModule):
         def flat_inputs(input_array, n_particles):
             output_array = input_array[:,:n_particles,:]
             output_array = output_array.transpose(0,2,1)
-            output_array = output_array.reshape(-1, 49)
+            output_array = output_array.reshape(-1, self.n_features)
 
             return output_array
 

@@ -16,7 +16,7 @@ from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError, R2Score
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # === Local utility imports ===
-from src.utils.Plotting import plot_metrics, compute_feature_importance_and_correlation_plot
+from src.utils.Plotting import plot_metrics, compute_feature_importance_and_correlation_plot, plot_training_losses
 from src.utils.LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
 
 import torchmetrics
@@ -93,6 +93,16 @@ class VBFDNNRegression(L.LightningModule):
         # Lightning automatically aggregates epoch metrics, so we just grab it
         epoch_loss = self.trainer.callback_metrics["train_loss"].item()
         self.train_losses.append(epoch_loss)
+        
+    def on_train_end(self):
+        #Plot the losses once the training is fully done
+        train_losses_arr = np.array(self.train_losses)
+        val_losses_arr = np.array(self.val_losses)
+
+        plot_training_losses(train_losses_arr, val_losses_arr, self.loss_fn, folder_name=self.result_dir)
+        
+        self.train_losses.clear()
+        self.val_losses.clear()
     
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -143,18 +153,12 @@ class VBFDNNRegression(L.LightningModule):
             
         y_true_test = torch.cat(y_true_list).cpu().detach().numpy().squeeze()
         y_pred_test = torch.cat(y_pred_list).cpu().detach().numpy().squeeze()
-        
-        train_losses_arr = np.array(self.train_losses)
-        val_losses_arr = np.array(self.val_losses)
 
         y_true_test_tensor = torch.tensor(y_true_test, dtype=torch.float32, device=self.device)
 
-        plot_metrics(train_losses_arr, val_losses_arr, y_true_test, y_pred_test, self.loss_fn, folder_name=self.result_dir)
-    
-        compute_feature_importance_and_correlation_plot(
-            model=self.model, datamodule=self.trainer.datamodule, device=self.device,
-            result_dir=self.result_dir, feature_names=self.trainer.datamodule.pretty_feature_names, trainer=self.trainer
-        )
+        plot_metrics(y_true_test, y_pred_test, folder_name=self.result_dir)
+        compute_feature_importance_and_correlation_plot(self.model, self.trainer.datamodule, self.device,self.result_dir, 
+                                                        self.trainer.datamodule.pretty_feature_names, self.trainer)
 
         self.log('Mean Absolute Error', self.mae.compute())
         self.log('Mean Squared Error', self.mse.compute())
@@ -162,9 +166,6 @@ class VBFDNNRegression(L.LightningModule):
         self.log('Mean Fractional Bias', self.mfb.compute())
         self.log('Meadia_AE', self.median_ae.compute())
         self.log('Root Mean Squared Log Error', self.rmsle.compute())
-        
-        self.train_losses.clear()
-        self.val_losses.clear()
         
         for metric in [self.mae, self.mse, self.r2, self.mfb, self.median_ae, self.rmsle , self.r2]:
             metric.reset()

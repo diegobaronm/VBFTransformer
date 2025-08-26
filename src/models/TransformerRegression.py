@@ -22,7 +22,7 @@ from torchinfo import summary  # or from torchsummary import summary
 import torchmetrics 
 
 # === Local utility imports ===
-from src.utils.Plotting import plot_metrics, plot_and_save_attention
+from src.utils.Plotting import plot_metrics, plot_and_save_attention, plot_training_losses
 from src.utils.LossFunctions import WeightedTailLoss, QuantileAwareLoss, InverseGaussianWeightedLoss, build_loss_function
 from torchmetrics.regression import MeanSquaredLogError
 from src.models.ModelMetrics import AttentionEntropy, AttentionSparsity, HeadDiversity # transformer specific metrics
@@ -115,7 +115,17 @@ class VBFTransformerRegression(L.LightningModule):
         # Lightning automatically aggregates epoch metrics, so we just grab it
         epoch_loss = self.trainer.callback_metrics["train_loss"].item()
         self.train_losses.append(epoch_loss)
-    
+
+    def on_train_end(self):
+        #Plot the losses once the training is fully done
+        train_losses_arr = np.array(self.train_losses)
+        val_losses_arr = np.array(self.val_losses)
+
+        plot_training_losses(train_losses_arr, val_losses_arr, self.loss_fn, folder_name=self.result_dir)
+        
+        self.train_losses.clear()
+        self.val_losses.clear()
+
     def validation_step(self, batch, batch_idx):
         if self.trainer.datamodule.compute_pairing_tokens:
             (particles, metadata, y) = batch
@@ -220,9 +230,6 @@ class VBFTransformerRegression(L.LightningModule):
         y_pred_list = [torch.tensor(y) if isinstance(y, np.ndarray) else y for y in y_pred_list]
         y_pred_test = torch.cat(y_pred_list).cpu().detach().numpy().squeeze()
 
-        train_losses_arr = np.array(self.train_losses)
-        val_losses_arr = np.array(self.val_losses)
-
         y_true_test_tensor = torch.tensor(y_true_test, dtype=torch.float32, device=self.device)
         y_pred_test_tensor = torch.tensor(y_pred_test, dtype=torch.float32, device=self.device)
 
@@ -233,13 +240,9 @@ class VBFTransformerRegression(L.LightningModule):
         self.log('Meadia_AE', self.median_ae.compute())
         self.log('Root Mean Squared Log Error', self.rmsle.compute())
     
-        plot_metrics(train_losses_arr, val_losses_arr, y_true_test, y_pred_test, self.loss_fn, folder_name=self.result_dir)
+        plot_metrics(y_true_test, y_pred_test, folder_name=self.result_dir)
         plot_and_save_attention(attn_per_example=attn_list[0], save_dir=self.result_dir)
    
-        # Clear lists for next test
-        self.train_losses.clear()
-        self.val_losses.clear()
-        
         for metric in [self.mae, self.mse, self.r2, self.mfb, self.median_ae, self.rmsle , self.r2, self.attn_entropy, self.attn_sparsity,  self.head_diversity]:
             metric.reset()
 

@@ -80,7 +80,12 @@ def plot_particle_distributions(left_tail_ind, right_tail_ind, signal_data, x_ra
     plotHelp.save_fig(fig, Path(folder_name) / filename, dpi=100)
     plt.close()
 
-def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, criterion, folder_name="plots"):
+def plot_training_losses(train_losses, val_losses, criterion, folder_name):
+    """Wrapper function to plot val and train losses after model has been trained"""
+    _plot_loss_and_landscape(train_losses, val_losses, criterion, folder_name, DEFAULT_STYLE)
+
+
+def plot_metrics(y_true_test, y_pred_test, folder_name="plots"):
     """Plot training metrics with loss curves, 2D histograms, and mass distributions."""
     
     # Compute derived metrics
@@ -89,7 +94,6 @@ def plot_metrics(train_losses, val_losses, y_true_test, y_pred_test, criterion, 
     r2_global = r2_score(y_true_test, y_pred_test)
     
     # Create all plots
-    _plot_loss_and_landscape(train_losses, val_losses, criterion, folder_name, DEFAULT_STYLE)
     _plot_2d_histograms(y_true_test, y_pred_test, r2_global, folder_name, DEFAULT_STYLE)
     _plot_mass_distributions(y_true_test, y_pred_test, median_abs_error, folder_name, DEFAULT_STYLE)
 

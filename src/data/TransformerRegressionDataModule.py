@@ -42,7 +42,7 @@ class VBFTransformerRegressionDataModule(L.LightningDataModule):
         self.extra_features = [extra_feature_dict[k] for k in dataset_cfg.extra_scaling_dict.keys()]
 
         # If extra features defined in: 10.1088/1674-1137/ad7f3d should be computed
-        self.compute_pairing_tokens = train_cfg.get('compute_interaction_tokens', False)
+        self.compute_pairing_tokens = train_cfg.get('compute_pairing_tokens', False)
         self.using_extra_features = len(self.extra_features) > 0 
         
         self.inverse_sampling = dataset_cfg.get('inverse_sampling', False)

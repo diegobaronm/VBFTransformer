@@ -47,6 +47,7 @@ train:
   n_epochs: 1000
   num_quantiles: 10
   weight_decay: 0.0
+  compute_pairing_tokens: False
 
 general:
   device: cuda

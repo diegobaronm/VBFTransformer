@@ -8,10 +8,10 @@ dataset:
   background_path: data/SimpleQCD.h5
   persistent_workers: True
   train:
-    num_workers: 8
-    batch_size: 17408
+    num_workers: 12
+    batch_size: 51200 # You should use the same batch size that used for training, when predicting/testing.
   val:
-    num_workers: 8
+    num_workers: 12
     batch_size: 8192
 
 model:
@@ -22,11 +22,11 @@ model:
   n_particles: 5
 
 train:
-  n_epochs: 100
+  n_epochs: 150
   learning_rate: 0.0003
   dropout_probability: 0.1
 predict:
-  model_ckpt_path: lightning_logs/version_15/checkpoints/
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
   output_file: predictions.csv
 performance:
-  model_ckpt_path: lightning_logs/version_15/checkpoints/
+  model_ckpt_path: lightning_logs/version_0/checkpoints/

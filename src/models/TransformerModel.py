@@ -249,5 +249,5 @@ class VBFTransformer(L.LightningModule):
         self.feature_importance['nominal'].reset()
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=0.0001, amsgrad=True)
+        optimizer = optim.AdamW(self.model.parameters(), lr=self.learning_rate, weight_decay=0.0001, amsgrad=True)
         return optimizer

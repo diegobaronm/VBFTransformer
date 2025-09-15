@@ -18,16 +18,16 @@ class BasicTransformer(nn.Module):
             nn.Linear(input_dim, 32),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(32, 64),
+            nn.Linear(32, 128),
         )
         # Transformer Encoder
         self.transformer_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=64, nhead=n_head,batch_first=True),
+            nn.TransformerEncoderLayer(d_model=128, nhead=n_head,batch_first=True),
             num_layers=n_layers, enable_nested_tensor=False)
 
 
         self.output_classifier_head = nn.Sequential(
-            nn.Linear(64, 32),
+            nn.Linear(128, 32),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(32, 1),

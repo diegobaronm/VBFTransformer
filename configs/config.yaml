@@ -16,8 +16,8 @@ dataset:
 
 model:
   type: DNN
-  n_particles: 7
-  n_features: 63
+  n_particles: 5
+  n_features: 40
 
 train:
   n_epochs: 200

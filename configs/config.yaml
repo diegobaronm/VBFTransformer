@@ -20,8 +20,8 @@ model:
   n_features: 40
 
 train:
-  n_epochs: 200
-  learning_rate: 0.002
+  n_epochs: 400
+  learning_rate: 0.0003
   dropout_probability: 0.1
 predict:
   model_ckpt_path: lightning_logs/version_0/checkpoints/

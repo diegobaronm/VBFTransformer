@@ -22,7 +22,7 @@ class BasicTransformer(nn.Module):
         )
         # Transformer Encoder
         self.transformer_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model=128, nhead=n_head,batch_first=True),
+            nn.TransformerEncoderLayer(d_model=128, dim_feedforward=512, nhead=n_head,batch_first=True),
             num_layers=n_layers, enable_nested_tensor=False)
 
 

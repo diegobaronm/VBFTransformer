@@ -7,12 +7,15 @@ from loguru import logger
 import h5py
 from numpy.lib import recfunctions as rfn
 from omegaconf import DictConfig
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit
 
 from src.data.DataScaler import TransformerScaler
 
 class VBFTransformerDataModule(L.LightningDataModule):
     def __init__(self, cfg_object : DictConfig):
         super().__init__()
+
         # User-defined parameters
         self.signal_path = cfg_object.dataset.signal_path
         self.background_path = cfg_object.dataset.background_path
@@ -66,20 +69,13 @@ class VBFTransformerDataModule(L.LightningDataModule):
         input_data = input_data_transformed.reshape((input_data.shape[0], input_data_shape[1], 7+1)) # +1 Because you added this in the scaler.
 
         # split data into train, validation, and test sets (You can also do the shuffle here, if not shuffled before)
-        from sklearn.model_selection import train_test_split
-        from sklearn.model_selection import StratifiedShuffleSplit
+
         sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
         train_indices, test_indices = next(sss.split(input_data, target))
 
         X_train, y_train = input_data[train_indices], target[train_indices]
         X_temp, y_temp = input_data[test_indices], target[test_indices]
         X_val, X_test, y_val, y_test     = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)
-
-        # Log the number of events in each set by class
-        logger.info(f"Training set: {len(y_train)} events, {np.sum(y_train)} signal, {len(y_train) - np.sum(y_train)} background")
-        logger.info(f"Validation set: {len(y_val)} events, {np.sum(y_val)} signal, {len(y_val) - np.sum(y_val)} background")
-        logger.info(f"Test set: {len(y_test)} events, {np.sum(y_test)} signal, {len(y_test) - np.sum(y_test)} background")
-
 
         # As tensors
         X_train_tensor = torch.tensor(X_train, dtype=torch.float32)

@@ -1,0 +1,62 @@
+dataset:
+  input_files:
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20a_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20d_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_Sherpa2211_700360_mc20e_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20a_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20d_fullsim.h5
+  - ../../H5Dumper/VBF_Ztautau_PoPy_600939_mc20e_fullsim.h5
+  
+  extra_scaling_dict: {}
+    
+  scaling_dict:
+    energy: logminmax
+    eta: standardscaler
+    phi: phitransformer
+    pt: logminmax
+    
+  target_scaling: standardscaler
+  
+  train:
+    batch_size: 2048
+    num_workers: 10
+  val:
+    batch_size: 1024
+    num_workers: 10
+model:
+  num_heads: 4
+  num_layers: 2
+  
+  extra_features: []
+  features: [energy, eta, phi, pt]
+  input_embedder_NN_layers: [32, 64]
+  n_particles: 3
+  output_activation: linear
+  name: TransformRegressionTest
+  type: TransformerRegression
+
+train:
+  dropout_probability: 0.0
+  early_stopping_patience: 10
+  learning_rate: 0.00005
+  loss_fn: MSELoss
+  loss_fn_params:
+    reduction: mean
+    
+  lr_scheduler_patience: 10
+  n_epochs: 1000
+  num_quantiles: 10
+  weight_decay: 0.0
+  compute_pairing_tokens: False
+
+general:
+  device: cuda
+  mode: train
+  runner: federico
+  
+performance:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+predict:
+  model_ckpt_path: lightning_logs/version_0/checkpoints/
+  output_file: predictions.csv
+

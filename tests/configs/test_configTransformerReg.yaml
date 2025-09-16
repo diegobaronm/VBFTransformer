@@ -1,0 +1,67 @@
+dataset:
+  input_files:
+  - tests/data/vbf_regression_test.h5
+  scaling_dict:
+    energy: logminmax
+    eta: standardscaler
+    phi: phitransformer
+    pt: logminmax
+    btag: minmax
+    charge: none
+    type: none
+
+  extra_scaling_dict:
+    mz_mmc: standardscaler
+    
+  target_scaling: standardscaler
+  
+  train:
+    num_workers: 10
+    batch_size: 1024
+  val:
+    num_workers: 10
+    batch_size: 512
+
+  inverse_sampling: False
+  KDE_width: 1
+  Min_Dens_cap: 20
+  
+model:
+  num_heads: 8
+  num_layers: 2
+
+  input_embedder_NN_layers: [64, 128]
+  n_particles: 5
+  output_activation: linear
+  name: transformerRegressionTest
+  type: TransformerRegression
+  pooling_type: mean
+  norm_type: none
+
+train:
+  dropout_probability: 0.20
+  early_stopping_patience: 10
+  learning_rate: 0.00003
+  loss_fn: SmoothL1Loss
+  loss_fn_params:
+    reduction: mean
+    beta: 2.0
+    
+  lr_scheduler_patience: 5
+  n_epochs: 3
+  num_quantiles: 10
+  weight_decay: 1e-3
+  optimize: False
+  compute_pairing_tokens: False
+  
+general:
+  device: cpu
+  mode: train
+  runner: federico
+  
+performance:
+  model_ckpt_path: lightning_logs/version_3/checkpoints/
+predict:
+  model_ckpt_path: lightning_logs/version_3/checkpoints/
+  output_file: predictions.csv
+

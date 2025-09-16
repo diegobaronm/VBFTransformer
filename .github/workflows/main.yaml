@@ -53,3 +53,29 @@ jobs:
       run: |
         rm results/* # Clear previous results to avoid interactive input request.
         python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformer general.mode=performance
+
+    - name: Run DNNReg training
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=train
+
+    - name: Run DNNReg prediction
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=predict
+
+    - name: Run DNNReg performance
+      run: |
+        rm -rf results/* # Clear previous results and subdirectories to avoid interactive input request.
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configDNNReg general.mode=performance
+
+    - name: Run TransformerReg training
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=train
+
+    - name: Run TransformerReg prediction
+      run: |
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=predict
+
+    - name: Run TransformerReg performance
+      run: |
+        rm -rf results/* # Clear previous results and subdirectories to avoid interactive input request.
+        python VBFTransformer.py --config-dir tests/configs --config-name test_configTransformerReg general.mode=performance

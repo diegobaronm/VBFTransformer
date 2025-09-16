@@ -32,6 +32,12 @@ class LogScaler(BaseEstimator, TransformerMixin):
         else:
             return np.array([f"{feat}" for feat in input_features])
 
+    def inverse_transform(self, X):
+        if self.add_mask:
+            # Assumes first half of features are masks, second half are log values
+            X = X[:, X.shape[1] // 2:]
+        return np.exp(X) - self.offset
+
 class PhiTransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         self.n_features_in_ = X.shape[1]
@@ -62,12 +68,13 @@ class PhiTransformer(BaseEstimator, TransformerMixin):
 
 class ArctanScaler(FunctionTransformer):
     def __init__(self):
-        super().__init__(func=lambda x: np.arctan(x) * 2 / np.pi, validate=True)
+        super().__init__(func=lambda x: np.arctan(x) * 2 / np.pi,
+                         inverse_func=lambda x: np.tan(x * np.pi / 2),
+                         validate=True)
 
     def get_feature_names_out(self, input_features=None):
         if input_features is None:
             return None
-        # Append or prepend something to indicate this transform was applied
         return [f"{name}" for name in input_features]
 
 class LogMinMaxScaler(BaseEstimator, TransformerMixin):
@@ -109,6 +116,12 @@ class LogMinMaxScaler(BaseEstimator, TransformerMixin):
             return mask_names + scaled_names
         return scaled_names
 
+    def inverse_transform(self, X):
+        if self.add_mask:
+            X = X[:, X.shape[1] // 2:]
+        X_unscaled = self.scaler.inverse_transform(X.reshape(-1, 1)).flatten()
+        return np.expm1(X_unscaled).reshape(X.shape)
+
 
         
 class TanhScaler(BaseEstimator, TransformerMixin):
@@ -126,6 +139,10 @@ class TanhScaler(BaseEstimator, TransformerMixin):
             return None
         return [f"{name}" for name in input_features]
 
+    def inverse_transform(self, X):
+        return self.std_ * np.arctanh(2 * X - 1) + self.mean_
+
+
 # This scaler is needed when not applying scaling to data, if remainder='passthrough' is used the scaled data 
 # is put before the un-scaled data hence shuffling the tensor and causing problems when plotting
 class NoOpScaler(BaseEstimator, TransformerMixin):
@@ -134,6 +151,9 @@ class NoOpScaler(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return np.asarray(X)  # Return input unchanged
+
+    def inverse_transform(self, X):
+        return np.asarray(X)  # Also return unchanged
 
     def get_feature_names_out(self, input_features=None):
         return input_features
@@ -161,6 +181,7 @@ scaler_map = {
     'logminmax': LogMinMaxScaler,
     'arctan': ArctanScaler,
     'tanh': TanhScaler,
+    'log': LogScaler, 
     'none': NoOpScaler,
     'phitransformer': PhiTransformer,
 }
@@ -168,6 +189,8 @@ scaler_map = {
 
 def get_scalers_from_config(scaling_dict: dict) -> dict:
     scalers = {}
+    if scaling_dict is None: return {}
+        
     for feature, scaler_name in scaling_dict.items():
         scaler_cls = scaler_map.get(scaler_name.lower())
         if scaler_cls is not None:
@@ -179,7 +202,7 @@ def get_scalers_from_config(scaling_dict: dict) -> dict:
 # It gets fed an array of keywords to pull out and an array of indices to apply those transformations to
 def create_custom_scaler(all_feature_indices, scaling_dict, extra_scaling_dict):
     transformers = []
-
+    
     # Merge scaling configs
     full_scaling_dict = {**scaling_dict, **extra_scaling_dict}
 
